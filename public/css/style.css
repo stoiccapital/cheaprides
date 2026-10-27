@@ -44,6 +44,7 @@ body {
   background: rgba(11,13,16,0.85);
   backdrop-filter: saturate(140%) blur(10px);
   border-bottom: 1px solid var(--border);
+  padding-top: env(safe-area-inset-top);
 }
 .header-inner {
   display: flex; align-items: center; justify-content: space-between;
@@ -63,10 +64,11 @@ body {
 .tab.is-active { background: var(--text); color: var(--bg); }
 
 /* Auth area in header */
-.auth-area { display: inline-flex; align-items: center; gap: 8px; }
+.auth-area { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .auth-user {
   font-size: 13px; color: var(--text-dim); font-family: var(--mono);
   padding: 0 8px;
+  max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .auth-error {
   color: #ff8080; font-size: 13px; margin: 0;
@@ -439,6 +441,25 @@ body {
   background: color-mix(in oklab, var(--accent) 8%, var(--bg-elev));
 }
 
+/* ---------- Compact trip summary (mobile only) ---------- */
+.trip-compact {
+  display: none;
+  width: 100%; align-items: center; justify-content: space-between; gap: 12px;
+  background: var(--bg-elev); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 12px 14px; margin-bottom: 16px;
+  color: var(--text); font: inherit; cursor: pointer;
+  position: sticky; top: 60px; z-index: 5;
+}
+.trip-compact:hover { border-color: var(--border-strong); }
+.trip-compact-route {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--mono); font-size: 14px; text-align: left;
+}
+.trip-compact-edit {
+  color: var(--accent); font-size: 12px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em; flex-shrink: 0;
+}
+
 /* ---------- Booking contact (visible to rider) ---------- */
 .booking-contact {
   margin-top: 10px; padding-top: 10px;
@@ -452,7 +473,8 @@ body {
 
 /* ---------- Footer ---------- */
 .site-footer {
-  padding: 32px 0; border-top: 1px solid var(--border);
+  padding: 32px 0 calc(32px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border);
   margin-top: 40px;
 }
 
@@ -463,7 +485,71 @@ body {
   .hero h1 { font-size: 32px; }
   .company-form .row { grid-template-columns: 1fr; }
 }
+
 @media (max-width: 480px) {
-  .trip-form { grid-template-columns: 1fr; }
+  /* Reclaim gutter space on narrow screens */
+  .container, .container-sm { padding: 0 16px; }
+
+  /* Softer vertical padding */
+  .view { padding: 24px 0 48px; }
+  .hero { margin-bottom: 16px; }
+  .hero h1 { font-size: 24px; margin-bottom: 6px; }
+  .hero .lede { display: none; }
+
+  /* Trip form stacks fully; keep CTA full-width */
+  .trip-form { grid-template-columns: 1fr; padding: 12px; gap: 10px; }
+
+  /* Collapse trip form to a sticky compact summary once a route is set */
+  body.has-trip:not(.editing-trip) #trip-form { display: none; }
+  body.has-trip:not(.editing-trip) #trip-compact { display: flex; }
+
+  /* Header stacks and allows wrapping */
   .header-inner { flex-direction: column; gap: 12px; height: auto; padding: 12px 0; }
+  .auth-user { max-width: 160px; }
+
+  /* Prevent iOS auto-zoom on input focus (needs >= 16px) */
+  .field input, .field select, .field textarea { font-size: 16px; padding: 12px 14px; }
+
+  /* Tap targets: WCAG 44x44 */
+  .btn-sm, .card-actions .btn { min-height: 44px; padding: 10px 14px; }
+  .chip { min-height: 36px; padding: 8px 14px; }
+
+  /* Company grid: let narrower cards fit */
+  .company-grid { grid-template-columns: 1fr; gap: 12px; }
+  .company-card { padding: 16px; }
+  .card-name { font-size: 17px; }
+  .final-price .value { font-size: 24px; }
+
+  /* Modal: more content, less chrome */
+  .modal { padding: 12px; }
+  .modal-dialog { max-height: calc(100vh - 24px); }
+  .modal-header { padding: 16px; }
+  .modal-body { padding: 16px; gap: 18px; }
+
+  /* Role picker stays 2-col but tighter */
+  .role-picker { gap: 8px; }
+  .role-opt { padding: 10px; }
+
+  /* Booking card: action buttons stack full-width */
+  .booking-card { padding: 14px; }
+  .booking-actions { flex-direction: column; }
+  .booking-actions .btn { width: 100%; min-height: 44px; }
+  .booking-route { font-size: 13px; }
+
+  /* Booking confirm modal summary: let long routes truncate */
+  .summary-row { gap: 12px; }
+  .summary-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%; }
+
+  /* Card stats: predictable wrap */
+  .card-stats { gap: 8px 14px; }
+
+  /* Site footer: trim margin on small screens */
+  .site-footer { margin-top: 24px; }
+}
+
+@media (max-width: 360px) {
+  /* Edge case for compact Android */
+  .hero h1 { font-size: 22px; }
+  .auth-area { gap: 6px; }
+  .btn { padding: 10px 14px; }
 }

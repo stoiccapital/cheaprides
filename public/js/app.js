@@ -420,9 +420,33 @@ sortSelect.addEventListener('change', () => {
 function updateTripSummary() {
   const pickup = pickupInput.value.trim();
   const dropoff = dropoffInput.value.trim();
-  if (!currentDistance) { tripSummary.textContent = ''; return; }
+  if (!currentDistance) {
+    tripSummary.textContent = '';
+    document.body.classList.remove('has-trip');
+    document.body.classList.remove('editing-trip');
+    return;
+  }
   const route = pickup && dropoff ? `${pickup} → ${dropoff} · ` : '';
-  tripSummary.textContent = `${route}${fmtKm(Math.round(currentDistance))}`;
+  const summary = `${route}${fmtKm(Math.round(currentDistance))}`;
+  tripSummary.textContent = summary;
+  const compactRoute = document.getElementById('trip-compact-route');
+  if (compactRoute) {
+    const short = (s) => s.length > 24 ? s.slice(0, 22) + '…' : s;
+    compactRoute.textContent = (pickup && dropoff)
+      ? `${short(pickup)} → ${short(dropoff)} · ${fmtKm(Math.round(currentDistance))}`
+      : `${fmtKm(Math.round(currentDistance))}`;
+  }
+  document.body.classList.add('has-trip');
+  document.body.classList.remove('editing-trip');
+}
+
+const tripCompactBtn = document.getElementById('trip-compact');
+if (tripCompactBtn) {
+  tripCompactBtn.addEventListener('click', () => {
+    document.body.classList.add('editing-trip');
+    pickupInput.focus();
+    pickupInput.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
 }
 
 function clearCityFilter() {
