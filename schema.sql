@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS companies (
   stats_completed     INTEGER NOT NULL DEFAULT 0,
   stats_cancelled     INTEGER NOT NULL DEFAULT 0,
   stats_noshow        INTEGER NOT NULL DEFAULT 0,
+  last_completed_at   INTEGER,
   created_at          INTEGER NOT NULL,
   FOREIGN KEY (owner_id) REFERENCES users(id)
 );

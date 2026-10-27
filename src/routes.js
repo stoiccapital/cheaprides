@@ -275,9 +275,14 @@ export async function bookingAction(request, env, id) {
   ).bind(newStatus, now, id).run();
 
   if (statCol) {
-    await env.DB.prepare(
-      `UPDATE companies SET ${statCol} = ${statCol} + 1 WHERE id = ?`
-    ).bind(booking.company_id).run();
+    const extraSet = action === 'complete' ? ', last_completed_at = ?' : '';
+    const stmt = env.DB.prepare(
+      `UPDATE companies SET ${statCol} = ${statCol} + 1${extraSet} WHERE id = ?`
+    );
+    await (action === 'complete'
+      ? stmt.bind(now, booking.company_id)
+      : stmt.bind(booking.company_id)
+    ).run();
   }
 
   return json({ ok: true, status: newStatus });

@@ -4,14 +4,16 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
+    "dev": "wrangler pages dev ./public",
+    "deploy": "wrangler pages deploy ./public",
     "db:init:local": "wrangler d1 execute cheaprides --local --file=./schema.sql",
     "db:init:remote": "wrangler d1 execute cheaprides --remote --file=./schema.sql",
     "db:seed:local": "wrangler d1 execute cheaprides --local --file=./seed.sql",
     "db:seed:remote": "wrangler d1 execute cheaprides --remote --file=./seed.sql",
-    "db:migrate:local": "wrangler d1 execute cheaprides --local --file=./migrations/001_add_role_and_contact.sql",
-    "db:migrate:remote": "wrangler d1 execute cheaprides --remote --file=./migrations/001_add_role_and_contact.sql"
+    "db:migrate:001:local": "wrangler d1 execute cheaprides --local --file=./migrations/001_add_role_and_contact.sql",
+    "db:migrate:001:remote": "wrangler d1 execute cheaprides --remote --file=./migrations/001_add_role_and_contact.sql",
+    "db:migrate:002:local": "wrangler d1 execute cheaprides --local --file=./migrations/002_add_last_completed_at.sql",
+    "db:migrate:002:remote": "wrangler d1 execute cheaprides --remote --file=./migrations/002_add_last_completed_at.sql"
   },
   "devDependencies": {
     "wrangler": "^3.95.0"

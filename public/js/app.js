@@ -337,12 +337,21 @@ function cardHtml(company) {
     cancelled: company.stats_cancelled || 0,
     noShow:    company.stats_noshow    || 0,
   };
-  const statsRow = (s.completed || s.cancelled || s.noShow) ? `
+  const totalFinished = s.completed + s.cancelled + s.noShow;
+  const pct = (n) => Math.round((n / totalFinished) * 100);
+  const noShowRate = totalFinished > 0 ? pct(s.noShow) : null;
+  const cancelRate = totalFinished > 0 ? pct(s.cancelled) : null;
+
+  const statsRow = totalFinished > 0 ? `
     <div class="card-stats">
-      ${s.completed > 0 ? `<span class="stat"><span class="num">${s.completed}</span> trips</span>` : ''}
-      ${s.cancelled > 0 ? `<span class="stat stat-warn"><span class="num">${s.cancelled}</span> cancelled</span>` : ''}
-      ${s.noShow > 0 ? `<span class="stat stat-warn"><span class="num">${s.noShow}</span> no-show</span>` : ''}
-    </div>` : '';
+      ${company.last_completed_at ? `<span class="stat">Last ride <span class="num">${fmtRelativeTime(company.last_completed_at)}</span></span>` : ''}
+      <span class="stat"><span class="num">${s.completed}</span> trips</span>
+      <span class="stat ${noShowRate > 0 ? 'stat-warn' : ''}"><span class="num">${noShowRate}%</span> no-show</span>
+      <span class="stat ${cancelRate > 0 ? 'stat-warn' : ''}"><span class="num">${cancelRate}%</span> cancel</span>
+    </div>` : `
+    <div class="card-stats">
+      <span class="stat muted">No completed rides yet</span>
+    </div>`;
 
   const isCompanyAccount = currentUser && currentUser.role === 'company';
   const canBook = currentDistance && currentDistance >= company.min_km && !isCompanyAccount;
