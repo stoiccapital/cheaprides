@@ -1,0 +1,17 @@
+{
+  "name": "cheaprides",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:init:local": "wrangler d1 execute cheaprides --local --file=./schema.sql",
+    "db:init:remote": "wrangler d1 execute cheaprides --remote --file=./schema.sql",
+    "db:seed:local": "wrangler d1 execute cheaprides --local --file=./seed.sql",
+    "db:seed:remote": "wrangler d1 execute cheaprides --remote --file=./seed.sql"
+  },
+  "devDependencies": {
+    "wrangler": "^3.95.0"
+  }
+}

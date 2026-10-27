@@ -1,0 +1,808 @@
+// Cheaprides frontend — talks to the Cloudflare Worker API at /api/*.
+
+// ---------- State ----------
+let currentUser = null;      // { id, email, name } when logged in
+let companies = [];          // from /api/companies
+let bookings = [];           // from /api/bookings (only when logged in)
+let currentDistance = null;
+let currentSort = 'price';
+let bookingsFilter = 'all';
+let pickupCity = null;
+let pickupCoord = null;
+let dropoffCoord = null;
+
+// Modal state
+let modalCompanyId = null;
+let modalBookingId = null;
+let selectedRating = 0;
+let bookingModalCompanyId = null;
+
+// Auth modal state
+let authMode = 'login'; // 'login' | 'signup'
+
+// ---------- API client ----------
+async function api(path, { method = 'GET', body } = {}) {
+  const opts = { method, headers: {}, credentials: 'same-origin' };
+  if (body !== undefined) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  }
+  const res = await fetch('/api' + path, opts);
+  const data = res.status === 204 ? null : await res.json().catch(() => null);
+  if (!res.ok) {
+    const err = new Error((data && data.error) || `HTTP ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
+  return data;
+}
+
+// ---------- Formatting ----------
+function fmtEuro(v) {
+  return v.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+}
+function fmtKm(v) {
+  return Number(v).toLocaleString('de-DE') + ' km';
+}
+function fmtPricePerKm(v) {
+  return v.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €/km';
+}
+function fmtRelativeTime(ts) {
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return mins + ' min ago';
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs + ' h ago';
+  const days = Math.floor(hrs / 24);
+  if (days < 30) return days + ' d ago';
+  const months = Math.floor(days / 30);
+  if (months < 12) return months + ' mo ago';
+  return Math.floor(months / 12) + ' y ago';
+}
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+}
+function stars(rating) {
+  const full = Math.round(rating);
+  return '★★★★★'.slice(0, full) + '☆☆☆☆☆'.slice(0, 5 - full);
+}
+
+// ---------- Business logic ----------
+function avgRating(reviews) {
+  if (!reviews || reviews.length === 0) return 0;
+  return reviews.reduce((a, r) => a + r.rating, 0) / reviews.length;
+}
+function computeFinalPrice(company, distance) {
+  if (!distance || distance <= 0) return null;
+  if (distance < company.min_km) {
+    return { unavailable: true, reason: `Min ${fmtKm(company.min_km)}` };
+  }
+  return { unavailable: false, total: distance * company.price_per_km };
+}
+function matchesCity(company) {
+  if (!pickupCity) return true;
+  const a = (company.city || '').toLowerCase();
+  const b = pickupCity.toLowerCase();
+  return a === b || a.includes(b) || b.includes(a);
+}
+function sortCompanies(list, mode, distance) {
+  const copy = [...list];
+  if (mode === 'price' && distance) {
+    copy.sort((a, b) => {
+      const pa = computeFinalPrice(a, distance);
+      const pb = computeFinalPrice(b, distance);
+      return (pa && !pa.unavailable ? pa.total : Infinity) - (pb && !pb.unavailable ? pb.total : Infinity);
+    });
+  } else if (mode === 'price') {
+    copy.sort((a, b) => a.price_per_km - b.price_per_km);
+  } else if (mode === 'rating') {
+    copy.sort((a, b) => avgRating(b.reviews) - avgRating(a.reviews));
+  } else if (mode === 'newest') {
+    copy.sort((a, b) => b.created_at - a.created_at);
+  }
+  return copy;
+}
+
+// ---------- DOM references ----------
+const grid = document.getElementById('company-grid');
+const emptyState = document.getElementById('empty-state');
+const resultCount = document.getElementById('result-count');
+const tripSummary = document.getElementById('trip-summary');
+const cityChip = document.getElementById('city-chip');
+const cityChipName = document.getElementById('city-chip-name');
+
+const bookingsList = document.getElementById('bookings-list');
+const bookingsEmpty = document.getElementById('bookings-empty');
+const bookingsAuthWarn = document.getElementById('bookings-auth-warn');
+const bookingsCount = document.getElementById('bookings-count');
+
+const listAuthWarn = document.getElementById('list-auth-warn');
+const companyForm = document.getElementById('company-form');
+
+const modal = document.getElementById('modal');
+const modalTitle = document.getElementById('modal-title');
+const modalSub = document.getElementById('modal-sub');
+const reviewsList = document.getElementById('reviews-list');
+const starInput = document.getElementById('star-input');
+const reviewForm = document.getElementById('review-form');
+const rateSection = document.getElementById('rate-section');
+
+const bookingModal = document.getElementById('booking-modal');
+const bookingConfirmBtn = document.getElementById('booking-confirm');
+
+const authModal = document.getElementById('auth-modal');
+const authForm = document.getElementById('auth-form');
+const authError = document.getElementById('auth-error');
+
+// ---------- Tabs / views ----------
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => switchView(tab.dataset.view));
+});
+function switchView(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('is-active', t.dataset.view === name));
+  document.querySelectorAll('.view').forEach(v => v.classList.toggle('is-active', v.id === 'view-' + name));
+  if (name === 'bookings') renderBookings();
+  if (name === 'list') renderListAuthState();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+document.addEventListener('click', (e) => {
+  const goto = e.target.closest('[data-goto]');
+  if (goto) switchView(goto.dataset.goto);
+  const authLink = e.target.closest('[data-auth]');
+  if (authLink) openAuth(authLink.dataset.auth);
+});
+
+// ---------- Auth UI ----------
+const authUserEl = document.getElementById('auth-user');
+const btnLogin = document.getElementById('btn-login');
+const btnSignup = document.getElementById('btn-signup');
+const btnLogout = document.getElementById('btn-logout');
+
+btnLogin.addEventListener('click', () => openAuth('login'));
+btnSignup.addEventListener('click', () => openAuth('signup'));
+btnLogout.addEventListener('click', async () => {
+  await api('/auth/logout', { method: 'POST' });
+  currentUser = null;
+  bookings = [];
+  renderAuthState();
+  renderBookings();
+  renderListAuthState();
+});
+
+function openAuth(mode) {
+  authMode = mode;
+  const title = document.getElementById('auth-modal-title');
+  const sub = document.getElementById('auth-modal-sub');
+  const submit = document.getElementById('auth-submit');
+  const switchText = document.getElementById('auth-switch-text');
+  const switchBtn = document.getElementById('auth-switch');
+  const nameField = document.getElementById('auth-name-field');
+
+  if (mode === 'signup') {
+    title.textContent = 'Create your account';
+    sub.textContent = 'Book rides with just an email.';
+    submit.textContent = 'Sign up';
+    switchText.textContent = 'Already have an account?';
+    switchBtn.textContent = 'Log in instead';
+    nameField.hidden = false;
+  } else {
+    title.textContent = 'Log in';
+    sub.textContent = 'Welcome back.';
+    submit.textContent = 'Log in';
+    switchText.textContent = 'New here?';
+    switchBtn.textContent = 'Create an account';
+    nameField.hidden = true;
+  }
+  authError.hidden = true;
+  authForm.reset();
+  openModalEl(authModal);
+}
+
+document.getElementById('auth-switch').addEventListener('click', () => {
+  openAuth(authMode === 'login' ? 'signup' : 'login');
+});
+
+authForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  authError.hidden = true;
+  const email = document.getElementById('a-email').value.trim();
+  const password = document.getElementById('a-password').value;
+  const name = document.getElementById('a-name').value.trim();
+
+  try {
+    const path = authMode === 'signup' ? '/auth/signup' : '/auth/login';
+    const body = authMode === 'signup' ? { email, password, name } : { email, password };
+    const data = await api(path, { method: 'POST', body });
+    currentUser = data.user;
+    closeAllModals();
+    renderAuthState();
+    renderListAuthState();
+    await refreshBookings();
+  } catch (err) {
+    authError.textContent = err.message;
+    authError.hidden = false;
+  }
+});
+
+function renderAuthState() {
+  if (currentUser) {
+    authUserEl.hidden = false;
+    authUserEl.textContent = currentUser.name || currentUser.email;
+    btnLogout.hidden = false;
+    btnLogin.hidden = true;
+    btnSignup.hidden = true;
+  } else {
+    authUserEl.hidden = true;
+    btnLogout.hidden = true;
+    btnLogin.hidden = false;
+    btnSignup.hidden = false;
+  }
+}
+
+function renderListAuthState() {
+  if (currentUser) {
+    listAuthWarn.hidden = true;
+    companyForm.hidden = false;
+  } else {
+    listAuthWarn.hidden = false;
+    companyForm.hidden = true;
+  }
+}
+
+// ---------- Companies ----------
+async function refreshCompanies() {
+  try {
+    const data = await api('/companies');
+    companies = data.companies;
+    renderCompanies();
+  } catch (err) {
+    console.error('Load companies failed', err);
+  }
+}
+
+function renderCompanies() {
+  const filtered = pickupCity ? companies.filter(matchesCity) : companies;
+  const sorted = sortCompanies(filtered, currentSort, currentDistance);
+
+  resultCount.textContent = sorted.length + (sorted.length === 1 ? ' company' : ' companies');
+
+  if (sorted.length === 0) {
+    grid.innerHTML = '';
+    emptyState.hidden = false;
+    emptyState.innerHTML = pickupCity
+      ? `<p>No companies in <strong>${escapeHtml(pickupCity)}</strong> yet. <button class="link-btn" id="clear-city-inline">Clear city filter</button> or <button class="link-btn" data-goto="list">list your company</button>.</p>`
+      : `<p>No companies yet. Be the first to <button class="link-btn" data-goto="list">list your company</button>.</p>`;
+    const clearInline = document.getElementById('clear-city-inline');
+    if (clearInline) clearInline.addEventListener('click', clearCityFilter);
+    return;
+  }
+  emptyState.hidden = true;
+
+  grid.innerHTML = sorted.map(company => cardHtml(company)).join('');
+}
+
+function cardHtml(company) {
+  const rating = avgRating(company.reviews);
+  const final = computeFinalPrice(company, currentDistance);
+
+  let priceBlock = `
+    <div class="final-price">
+      <span class="label">Enter trip →</span>
+      <span class="value num">—</span>
+    </div>`;
+  if (final && final.unavailable) {
+    priceBlock = `
+      <div class="final-price unavailable">
+        <span class="label">Not available</span>
+        <span class="value num">${final.reason}</span>
+      </div>`;
+  } else if (final) {
+    priceBlock = `
+      <div class="final-price">
+        <span class="label">Final price</span>
+        <span class="value num">${fmtEuro(final.total)}</span>
+      </div>`;
+  }
+
+  const ratingBlock = company.reviews.length > 0
+    ? `<span class="rating"><span class="star-icon">★</span><span>${rating.toFixed(1)}</span><span class="count">(${company.reviews.length})</span></span>`
+    : `<span class="rating"><span class="star-icon" style="color:var(--text-mute)">★</span><span class="count">No reviews</span></span>`;
+
+  const s = {
+    completed: company.stats_completed || 0,
+    cancelled: company.stats_cancelled || 0,
+    noShow:    company.stats_noshow    || 0,
+  };
+  const statsRow = (s.completed || s.cancelled || s.noShow) ? `
+    <div class="card-stats">
+      ${s.completed > 0 ? `<span class="stat"><span class="num">${s.completed}</span> trips</span>` : ''}
+      ${s.cancelled > 0 ? `<span class="stat stat-warn"><span class="num">${s.cancelled}</span> cancelled</span>` : ''}
+      ${s.noShow > 0 ? `<span class="stat stat-warn"><span class="num">${s.noShow}</span> no-show</span>` : ''}
+    </div>` : '';
+
+  const canBook = currentDistance && currentDistance >= company.min_km;
+  const bookBtn = canBook
+    ? `<button class="btn btn-primary btn-sm" data-action="book" data-id="${company.id}">Book now</button>`
+    : `<button class="btn btn-primary btn-sm" disabled title="Enter a route first">Book now</button>`;
+
+  return `
+    <article class="company-card" data-id="${company.id}">
+      <div class="card-head">
+        <div>
+          <h3 class="card-name">${escapeHtml(company.name)}</h3>
+          <span class="card-city">${escapeHtml(company.city)}</span>
+        </div>
+        ${ratingBlock}
+      </div>
+      ${company.description ? `<p class="card-desc">${escapeHtml(company.description)}</p>` : ''}
+      ${statsRow}
+      <div class="price-row">
+        <div class="price-meta">
+          <span><span class="mono">${fmtPricePerKm(company.price_per_km)}</span></span>
+          <span>min <span class="mono">${fmtKm(company.min_km)}</span></span>
+        </div>
+        ${priceBlock}
+      </div>
+      <div class="card-actions">
+        <button class="btn btn-ghost btn-sm" data-action="reviews" data-id="${company.id}">Reviews</button>
+        ${bookBtn}
+      </div>
+    </article>
+  `;
+}
+
+grid.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  const id = btn.dataset.id;
+  if (btn.dataset.action === 'reviews') openReviewsModal(id, { canRate: false });
+  if (btn.dataset.action === 'book') onBookClick(id);
+});
+
+// ---------- Trip form ----------
+const tripForm = document.getElementById('trip-form');
+const pickupInput = document.getElementById('pickup');
+const dropoffInput = document.getElementById('dropoff');
+const distanceInput = document.getElementById('distance');
+const sortSelect = document.getElementById('sort');
+
+tripForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const d = parseFloat(distanceInput.value);
+  currentDistance = isNaN(d) || d <= 0 ? null : d;
+  updateTripSummary();
+  renderCompanies();
+});
+sortSelect.addEventListener('change', () => {
+  currentSort = sortSelect.value;
+  renderCompanies();
+});
+
+function updateTripSummary() {
+  const pickup = pickupInput.value.trim();
+  const dropoff = dropoffInput.value.trim();
+  if (!currentDistance) { tripSummary.textContent = ''; return; }
+  const route = pickup && dropoff ? `${pickup} → ${dropoff} · ` : '';
+  tripSummary.textContent = `${route}${fmtKm(Math.round(currentDistance))}`;
+}
+
+function clearCityFilter() {
+  pickupCity = null;
+  renderCityChip();
+  renderCompanies();
+}
+document.getElementById('city-chip-clear').addEventListener('click', clearCityFilter);
+function renderCityChip() {
+  if (pickupCity) {
+    cityChip.hidden = false;
+    cityChipName.textContent = pickupCity;
+  } else {
+    cityChip.hidden = true;
+  }
+}
+
+// ---------- Nominatim + OSRM ----------
+const pickupAc = document.getElementById('pickup-ac');
+const dropoffAc = document.getElementById('dropoff-ac');
+
+function debounce(fn, ms) {
+  let t;
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+async function searchNominatim(q, signal) {
+  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=5&addressdetails=1`;
+  const res = await fetch(url, { signal, headers: { 'Accept-Language': 'en' } });
+  if (!res.ok) throw new Error('geocoding failed');
+  return res.json();
+}
+async function fetchRouteDistance(a, b) {
+  const url = `https://router.project-osrm.org/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?overview=false`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('routing failed');
+  const data = await res.json();
+  if (!data.routes || !data.routes[0]) throw new Error('no route');
+  return data.routes[0].distance / 1000;
+}
+function extractCity(r) {
+  const a = r.address || {};
+  return a.city || a.town || a.village || a.municipality || a.county || null;
+}
+
+function attachAutocomplete(input, dropdown, onPick) {
+  let currentCtrl = null;
+  let results = [];
+  const run = debounce(async () => {
+    const q = input.value.trim();
+    if (q.length < 3) { dropdown.hidden = true; return; }
+    if (currentCtrl) currentCtrl.abort();
+    currentCtrl = new AbortController();
+    dropdown.innerHTML = '<li class="ac-info">Searching…</li>';
+    dropdown.hidden = false;
+    try {
+      results = await searchNominatim(q, currentCtrl.signal);
+      if (results.length === 0) {
+        dropdown.innerHTML = '<li class="ac-info">No matches found.</li>';
+        return;
+      }
+      dropdown.innerHTML = results.map((r, i) => {
+        const parts = r.display_name.split(',');
+        return `
+          <li data-index="${i}">
+            <span class="ac-main">${escapeHtml(parts[0].trim())}</span>
+            <span class="ac-sub">${escapeHtml(parts.slice(1).join(',').trim())}</span>
+          </li>`;
+      }).join('');
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+      dropdown.innerHTML = '<li class="ac-info">Lookup failed. Try again.</li>';
+    }
+  }, 400);
+
+  input.addEventListener('input', () => { onPick(null); run(); });
+  input.addEventListener('focus', () => {
+    if (dropdown.children.length > 0 && input.value.trim().length >= 3) dropdown.hidden = false;
+  });
+  input.addEventListener('blur', () => setTimeout(() => { dropdown.hidden = true; }, 150));
+  dropdown.addEventListener('mousedown', (e) => {
+    const li = e.target.closest('li[data-index]');
+    if (!li) return;
+    const r = results[parseInt(li.dataset.index, 10)];
+    if (!r) return;
+    input.value = r.display_name;
+    dropdown.hidden = true;
+    onPick({ lat: parseFloat(r.lat), lon: parseFloat(r.lon), label: r.display_name, city: extractCity(r) });
+  });
+}
+
+attachAutocomplete(pickupInput, pickupAc, (coord) => {
+  pickupCoord = coord;
+  pickupCity = coord ? coord.city : null;
+  renderCityChip();
+  renderCompanies();
+  if (coord) maybeCalculateRoute();
+});
+attachAutocomplete(dropoffInput, dropoffAc, (coord) => {
+  dropoffCoord = coord;
+  if (coord) maybeCalculateRoute();
+});
+
+async function maybeCalculateRoute() {
+  if (!pickupCoord || !dropoffCoord) return;
+  distanceInput.value = '';
+  distanceInput.placeholder = '…';
+  try {
+    const km = await fetchRouteDistance(pickupCoord, dropoffCoord);
+    distanceInput.value = Math.round(km);
+    distanceInput.placeholder = '25';
+    currentDistance = km;
+    updateTripSummary();
+    renderCompanies();
+  } catch {
+    distanceInput.placeholder = 'Route failed';
+  }
+}
+
+// ---------- Company form ----------
+companyForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const body = {
+    name: document.getElementById('c-name').value.trim(),
+    managing_director: document.getElementById('c-director').value.trim(),
+    billing_address: document.getElementById('c-address').value.trim(),
+    city: document.getElementById('c-city').value.trim(),
+    vat_number: document.getElementById('c-vat').value.trim(),
+    description: document.getElementById('c-desc').value.trim(),
+    price_per_km: parseFloat(document.getElementById('c-price').value),
+    min_km: parseFloat(document.getElementById('c-min').value),
+  };
+  try {
+    await api('/companies', { method: 'POST', body });
+    companyForm.reset();
+    await refreshCompanies();
+    switchView('browse');
+  } catch (err) {
+    alert('Could not publish listing: ' + err.message);
+  }
+});
+
+// ---------- Booking ----------
+function onBookClick(companyId) {
+  if (!currentUser) { openAuth('login'); return; }
+  const company = companies.find(c => c.id === companyId);
+  if (!company) return;
+  if (!currentDistance) { alert('Enter pickup, dropoff, and distance first.'); return; }
+  if (currentDistance < company.min_km) {
+    alert(`This company has a minimum of ${fmtKm(company.min_km)}.`);
+    return;
+  }
+
+  bookingModalCompanyId = companyId;
+  const route = `${pickupInput.value.trim() || '?'} → ${dropoffInput.value.trim() || '?'}`;
+  const total = currentDistance * company.price_per_km;
+  document.getElementById('booking-modal-title').textContent = `Book ${company.name}`;
+  document.getElementById('booking-modal-sub').textContent = company.city;
+  document.getElementById('bk-route').textContent = route;
+  document.getElementById('bk-distance').textContent = fmtKm(Math.round(currentDistance));
+  document.getElementById('bk-rate').textContent = fmtPricePerKm(company.price_per_km);
+  document.getElementById('bk-total').textContent = fmtEuro(total);
+  openModalEl(bookingModal);
+}
+
+bookingConfirmBtn.addEventListener('click', async () => {
+  if (!bookingModalCompanyId) return;
+  try {
+    await api('/bookings', { method: 'POST', body: {
+      company_id: bookingModalCompanyId,
+      pickup: pickupInput.value.trim() || '—',
+      dropoff: dropoffInput.value.trim() || '—',
+      distance: currentDistance,
+    }});
+    closeAllModals();
+    await refreshBookings();
+    switchView('bookings');
+  } catch (err) {
+    alert('Could not book: ' + err.message);
+  }
+});
+
+// ---------- Bookings view ----------
+async function refreshBookings() {
+  if (!currentUser) { bookings = []; renderBookings(); return; }
+  try {
+    const data = await api('/bookings');
+    bookings = data.bookings;
+    renderBookings();
+  } catch (err) {
+    console.error('Load bookings failed', err);
+  }
+}
+
+document.querySelectorAll('#booking-filters .chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('#booking-filters .chip').forEach(c => c.classList.toggle('is-active', c === chip));
+    bookingsFilter = chip.dataset.filter;
+    renderBookings();
+  });
+});
+
+function renderBookings() {
+  if (!currentUser) {
+    bookingsAuthWarn.hidden = false;
+    bookingsList.innerHTML = '';
+    bookingsEmpty.hidden = true;
+    bookingsCount.hidden = true;
+    document.getElementById('booking-filters').style.display = 'none';
+    return;
+  }
+  bookingsAuthWarn.hidden = true;
+  document.getElementById('booking-filters').style.display = '';
+
+  let filtered = bookings;
+  if (bookingsFilter === 'cancelled') {
+    filtered = bookings.filter(b => b.status === 'cancelled' || b.status === 'noshow' || b.status === 'declined');
+  } else if (bookingsFilter !== 'all') {
+    filtered = bookings.filter(b => b.status === bookingsFilter);
+  }
+
+  const activeCount = bookings.filter(b => b.status === 'pending' || b.status === 'accepted' || (b.status === 'completed' && !b.reviewed && b.is_rider)).length;
+  bookingsCount.hidden = activeCount === 0;
+  bookingsCount.textContent = activeCount;
+
+  if (filtered.length === 0) {
+    bookingsList.innerHTML = '';
+    bookingsEmpty.hidden = false;
+    return;
+  }
+  bookingsEmpty.hidden = true;
+  bookingsList.innerHTML = filtered.map(bookingCardHtml).join('');
+}
+
+function bookingCardHtml(b) {
+  const statuses = {
+    pending:   { label: 'Pending',   cls: 'status-pending' },
+    accepted:  { label: 'Accepted',  cls: 'status-accepted' },
+    completed: { label: 'Completed', cls: 'status-completed' },
+    cancelled: { label: 'Cancelled', cls: 'status-cancelled' },
+    noshow:    { label: 'No-show',   cls: 'status-noshow' },
+    declined:  { label: 'Declined',  cls: 'status-declined' },
+  };
+  const st = statuses[b.status] || statuses.pending;
+
+  let actions = '';
+  if (b.is_owner && b.status === 'pending') {
+    actions = `
+      <button class="btn btn-primary btn-sm" data-booking-action="accept" data-id="${b.id}">Accept</button>
+      <button class="btn btn-ghost btn-sm" data-booking-action="decline" data-id="${b.id}">Decline</button>
+    `;
+  } else if (b.is_owner && b.status === 'accepted') {
+    actions = `
+      <button class="btn btn-primary btn-sm" data-booking-action="complete" data-id="${b.id}">Mark completed</button>
+      <button class="btn btn-ghost btn-sm" data-booking-action="noshow" data-id="${b.id}">No-show</button>
+      <button class="btn btn-ghost btn-sm" data-booking-action="cancel" data-id="${b.id}">Cancel</button>
+    `;
+  } else if (b.is_rider && b.status === 'completed' && !b.reviewed) {
+    actions = `<button class="btn btn-primary btn-sm" data-booking-action="rate" data-id="${b.id}">Rate this ride</button>`;
+  }
+
+  const roleTag = b.is_owner
+    ? `<span class="muted">as company</span>`
+    : `<span class="muted">as rider</span>`;
+
+  return `
+    <article class="booking-card">
+      <div class="booking-head">
+        <div>
+          <h3 class="booking-company">${escapeHtml(b.company_name)}</h3>
+          <span class="booking-meta">${roleTag} · ${fmtRelativeTime(b.created_at)}</span>
+        </div>
+        <span class="status-badge ${st.cls}">${st.label}</span>
+      </div>
+      <div class="booking-route">${escapeHtml(b.pickup)} → ${escapeHtml(b.dropoff)}</div>
+      <div class="booking-numbers num">
+        <span>${fmtKm(Math.round(b.distance))}</span>
+        <span class="dot">·</span>
+        <span>${fmtPricePerKm(b.price_per_km)}</span>
+        <span class="dot">·</span>
+        <span class="booking-total">${fmtEuro(b.total)}</span>
+      </div>
+      ${actions ? `<div class="booking-actions">${actions}</div>` : ''}
+    </article>
+  `;
+}
+
+bookingsList.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-booking-action]');
+  if (!btn) return;
+  const action = btn.dataset.bookingAction;
+  const id = btn.dataset.id;
+  const b = bookings.find(x => x.id === id);
+  if (!b) return;
+
+  if (action === 'rate') {
+    openReviewsModal(b.company_id, { canRate: true, bookingId: id });
+    return;
+  }
+
+  btn.disabled = true;
+  try {
+    await api(`/bookings/${id}/action`, { method: 'POST', body: { action } });
+    await Promise.all([refreshBookings(), refreshCompanies()]);
+  } catch (err) {
+    alert('Could not update: ' + err.message);
+    btn.disabled = false;
+  }
+});
+
+// ---------- Reviews modal ----------
+function openReviewsModal(companyId, { canRate = false, bookingId = null } = {}) {
+  const company = companies.find(c => c.id === companyId);
+  if (!company) return;
+  modalCompanyId = companyId;
+  modalBookingId = bookingId;
+  selectedRating = 0;
+  updateStarUI();
+  modalTitle.textContent = company.name;
+  const avg = avgRating(company.reviews);
+  modalSub.textContent = company.reviews.length
+    ? `${avg.toFixed(1)} ★ · ${company.reviews.length} review${company.reviews.length === 1 ? '' : 's'}`
+    : 'No reviews yet';
+  renderReviews(company);
+  reviewForm.reset();
+  rateSection.hidden = !canRate;
+  openModalEl(modal);
+}
+
+function renderReviews(company) {
+  if (!company.reviews || company.reviews.length === 0) {
+    reviewsList.innerHTML = '<p class="no-reviews">No reviews yet.</p>';
+    return;
+  }
+  reviewsList.innerHTML = company.reviews.map(r => `
+    <div class="review">
+      <div class="review-head">
+        <div>
+          <span class="review-author">${escapeHtml(r.author || 'Anonymous')}</span>
+          <span class="review-stars"> ${stars(r.rating)}</span>
+        </div>
+        <span class="review-time">${fmtRelativeTime(r.created_at)}</span>
+      </div>
+      ${r.comment ? `<p class="review-comment">${escapeHtml(r.comment)}</p>` : ''}
+    </div>
+  `).join('');
+}
+
+starInput.addEventListener('click', (e) => {
+  const star = e.target.closest('.star');
+  if (!star) return;
+  selectedRating = parseInt(star.dataset.value, 10);
+  updateStarUI();
+});
+starInput.addEventListener('mouseover', (e) => {
+  const star = e.target.closest('.star');
+  if (!star) return;
+  const val = parseInt(star.dataset.value, 10);
+  [...starInput.children].forEach((s, i) => s.classList.toggle('is-hover', i < val));
+});
+starInput.addEventListener('mouseleave', () => {
+  [...starInput.children].forEach(s => s.classList.remove('is-hover'));
+});
+function updateStarUI() {
+  [...starInput.children].forEach((s, i) => s.classList.toggle('is-selected', i < selectedRating));
+}
+
+reviewForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!modalBookingId || selectedRating < 1) {
+    alert('Please pick a rating.');
+    return;
+  }
+  const comment = document.getElementById('r-comment').value.trim();
+  try {
+    await api('/reviews', { method: 'POST', body: {
+      booking_id: modalBookingId,
+      rating: selectedRating,
+      comment,
+    }});
+    closeAllModals();
+    await Promise.all([refreshCompanies(), refreshBookings()]);
+  } catch (err) {
+    alert('Could not post review: ' + err.message);
+  }
+});
+
+// ---------- Generic modal plumbing ----------
+function openModalEl(el) {
+  el.hidden = false;
+  document.body.style.overflow = 'hidden';
+}
+function closeAllModals() {
+  [modal, bookingModal, authModal].forEach(m => { if (!m.hidden) m.hidden = true; });
+  document.body.style.overflow = '';
+  modalCompanyId = null;
+  modalBookingId = null;
+  bookingModalCompanyId = null;
+}
+document.addEventListener('click', (e) => {
+  if (e.target.closest('[data-close]')) closeAllModals();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeAllModals();
+});
+
+// ---------- Init ----------
+async function init() {
+  renderAuthState();
+  renderListAuthState();
+  try {
+    const { user } = await api('/auth/me');
+    currentUser = user;
+    renderAuthState();
+    renderListAuthState();
+  } catch {}
+  await refreshCompanies();
+  if (currentUser) await refreshBookings();
+}
+init();

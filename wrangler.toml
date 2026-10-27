@@ -1,0 +1,14 @@
+name = "cheaprides"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "cheaprides"
+database_id = "00000000-0000-0000-0000-000000000000"
