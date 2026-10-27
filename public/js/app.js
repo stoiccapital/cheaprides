@@ -242,8 +242,8 @@ function renderAuthState() {
   const listTab = document.querySelector('[data-tab="list"]');
   if (currentUser) {
     authUserEl.hidden = false;
-    const roleLabel = currentUser.role === 'company' ? ' · company' : '';
-    authUserEl.textContent = (currentUser.name || currentUser.email) + roleLabel;
+    const roleBadge = `<span class="role-badge role-badge-${currentUser.role}">${currentUser.role === 'company' ? 'Company' : 'Passenger'}</span>`;
+    authUserEl.innerHTML = `<span class="auth-user-name">${escapeHtml(currentUser.name || currentUser.email)}</span>${roleBadge}`;
     btnLogout.hidden = false;
     btnLogin.hidden = true;
     btnSignup.hidden = true;
@@ -346,19 +346,26 @@ function cardHtml(company) {
   };
   const totalFinished = s.completed + s.cancelled + s.noShow;
   const pct = (n) => Math.round((n / totalFinished) * 100);
-  const noShowRate = totalFinished > 0 ? pct(s.noShow) : null;
-  const cancelRate = totalFinished > 0 ? pct(s.cancelled) : null;
+  const noShowRate = totalFinished > 0 ? pct(s.noShow) : 0;
+  const cancelRate = totalFinished > 0 ? pct(s.cancelled) : 0;
 
-  const statsRow = totalFinished > 0 ? `
-    <div class="card-stats">
-      ${company.last_completed_at ? `<span class="stat">Last ride <span class="num">${fmtRelativeTime(company.last_completed_at)}</span></span>` : ''}
-      <span class="stat"><span class="num">${s.completed}</span> trips</span>
-      <span class="stat ${noShowRate > 0 ? 'stat-warn' : ''}"><span class="num">${noShowRate}%</span> no-show</span>
-      <span class="stat ${cancelRate > 0 ? 'stat-warn' : ''}"><span class="num">${cancelRate}%</span> cancel</span>
-    </div>` : `
-    <div class="card-stats">
-      <span class="stat muted">No completed rides yet</span>
-    </div>`;
+  const trustChips = [];
+  if (s.completed > 0) trustChips.push(`<span class="num">${s.completed}</span> trips`);
+  if (company.last_completed_at) trustChips.push(`last ride <span class="num">${fmtRelativeTime(company.last_completed_at)}</span>`);
+  const trustRow = trustChips.length > 0
+    ? `<div class="card-trust">${trustChips.join(' · ')}</div>`
+    : '';
+
+  const reliabilityChips = [];
+  if (noShowRate > 0) reliabilityChips.push(`<span class="num">${noShowRate}%</span> no-show`);
+  if (cancelRate > 0) reliabilityChips.push(`<span class="num">${cancelRate}%</span> cancel`);
+  const reliabilityRow = reliabilityChips.length > 0
+    ? `<div class="card-reliability">${reliabilityChips.join(' · ')}</div>`
+    : '';
+
+  const statsRow = (trustChips.length || reliabilityChips.length)
+    ? `${trustRow}${reliabilityRow}`
+    : `<div class="card-stats"><span class="stat muted">No completed rides yet</span></div>`;
 
   const isCompanyAccount = currentUser && currentUser.role === 'company';
   const belowMin = currentDistance && currentDistance < company.min_km;

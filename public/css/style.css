@@ -66,9 +66,26 @@ body {
 /* Auth area in header */
 .auth-area { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .auth-user {
-  font-size: 13px; color: var(--text-dim); font-family: var(--mono);
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--text-dim);
   padding: 0 8px;
-  max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  max-width: 260px;
+}
+.auth-user-name {
+  font-family: var(--mono);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  max-width: 180px;
+}
+.role-badge {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 999px; border: 1px solid transparent;
+  white-space: nowrap;
+}
+.role-badge-passenger {
+  background: rgba(124,242,156,0.12); color: var(--accent); border-color: rgba(124,242,156,0.3);
+}
+.role-badge-company {
+  background: rgba(100,160,255,0.12); color: #7fb4ff; border-color: rgba(100,160,255,0.3);
 }
 .auth-error {
   color: #ff8080; font-size: 13px; margin: 0;
@@ -81,12 +98,15 @@ body {
 .view.is-active { display: block; }
 
 /* ---------- Hero ---------- */
-.hero { text-align: left; margin-bottom: 32px; }
+.hero { text-align: left; margin-bottom: 28px; }
 .hero h1 {
-  font-size: 44px; line-height: 1.08; letter-spacing: -0.02em;
-  margin: 0 0 12px; font-weight: 700;
+  font-size: 32px; line-height: 1.1; letter-spacing: -0.02em;
+  margin: 0 0 8px; font-weight: 700;
 }
-.hero .lede { color: var(--text-dim); font-size: 17px; margin: 0; max-width: 640px; }
+.hero .lede { color: var(--text-dim); font-size: 15px; margin: 0; max-width: 640px; }
+#view-bookings .hero, #view-list .hero { margin-bottom: 20px; }
+#view-bookings .hero h1, #view-list .hero h1 { font-size: 22px; margin-bottom: 4px; }
+#view-bookings .hero .lede, #view-list .hero .lede { display: none; }
 
 /* ---------- Forms ---------- */
 .field { display: flex; flex-direction: column; gap: 6px; }
@@ -324,17 +344,17 @@ body {
 /* ---------- List meta + city chip ---------- */
 .meta-left { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .city-chip {
-  display: inline-flex; align-items: center; gap: 6px;
-  background: rgba(124,242,156,0.08); color: var(--text);
-  border: 1px solid rgba(124,242,156,0.25);
-  padding: 3px 4px 3px 10px; border-radius: 999px;
-  font-size: 12px;
+  display: inline-flex; align-items: center; gap: 8px;
+  background: rgba(124,242,156,0.1); color: var(--text);
+  border: 1px solid rgba(124,242,156,0.35);
+  padding: 6px 6px 6px 14px; border-radius: 999px;
+  font-size: 13px;
 }
 .city-chip strong { color: var(--accent); font-weight: 600; }
 .chip-clear {
   background: transparent; border: 0; color: var(--text-dim);
-  cursor: pointer; padding: 2px 6px; border-radius: 999px;
-  font-size: 11px;
+  cursor: pointer; padding: 4px 10px; border-radius: 999px;
+  font-size: 12px; font-weight: 600;
 }
 .chip-clear:hover { background: var(--bg-elev-2); color: var(--text); }
 
@@ -346,6 +366,17 @@ body {
 .stat { display: inline-flex; align-items: center; gap: 4px; }
 .stat .num { color: var(--text); font-size: 13px; }
 .stat-warn .num { color: var(--warn); }
+
+/* Two-tier trust/reliability lines on the company card */
+.card-trust {
+  font-size: 13px; color: var(--text-dim);
+}
+.card-trust .num { color: var(--text); font-family: var(--mono); }
+.card-reliability {
+  font-size: 12px; color: var(--warn);
+  margin-top: -8px;
+}
+.card-reliability .num { font-family: var(--mono); }
 
 .btn-sm { padding: 7px 12px; font-size: 13px; }
 .btn:disabled {
@@ -398,12 +429,13 @@ body {
   text-transform: uppercase; padding: 4px 10px; border-radius: 999px;
   border: 1px solid transparent; white-space: nowrap;
 }
-.status-pending   { background: rgba(255,184,77,0.12);  color: #ffb84d; border-color: rgba(255,184,77,0.25); }
-.status-accepted  { background: rgba(100,160,255,0.12); color: #7fb4ff; border-color: rgba(100,160,255,0.25); }
+/* 4-color semantic system: needs-action, in-progress, good-terminal, bad-terminal */
+.status-pending   { background: rgba(255,184,77,0.12);  color: #ffb84d;      border-color: rgba(255,184,77,0.25); }
+.status-accepted  { background: rgba(100,160,255,0.12); color: #7fb4ff;      border-color: rgba(100,160,255,0.25); }
 .status-completed { background: rgba(124,242,156,0.12); color: var(--accent); border-color: rgba(124,242,156,0.25); }
-.status-cancelled { background: rgba(255,99,99,0.1);    color: #ff8080; border-color: rgba(255,99,99,0.25); }
-.status-noshow    { background: rgba(255,140,80,0.1);   color: #ffa270; border-color: rgba(255,140,80,0.25); }
-.status-declined  { background: var(--bg-elev-2);       color: var(--text-mute); border-color: var(--border); }
+.status-cancelled,
+.status-noshow,
+.status-declined  { background: rgba(255,99,99,0.1);    color: #ff8080;      border-color: rgba(255,99,99,0.25); }
 
 /* ---------- Booking summary (in booking modal) ---------- */
 .modal-sm { max-width: 440px; }
