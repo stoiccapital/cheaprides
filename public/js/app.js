@@ -583,7 +583,7 @@ function cardHtml(company) {
   const cancelRate = totalFinished > 0 ? pct(s.cancelled) : 0;
 
   const trustChips = [];
-  if (s.completed > 0) trustChips.push(`<span class="num">${s.completed}</span> ${t('card.trips')}`);
+  if (s.completed > 0) trustChips.push(`<span class="num">${s.completed}</span> ${t(s.completed === 1 ? 'card.trip' : 'card.trips')}`);
   if (company.last_completed_at) trustChips.push(t('card.lastRide', { time: `<span class="num">${fmtRelativeTime(company.last_completed_at)}</span>` }));
   const trustRow = trustChips.length > 0
     ? `<div class="card-trust">${trustChips.join(' · ')}</div>`
