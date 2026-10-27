@@ -11,4 +11,4 @@ not_found_handling = "single-page-application"
 [[d1_databases]]
 binding = "DB"
 database_name = "cheaprides"
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "65580b87-781f-43f0-a1fe-39b8a1f1c8d7"
