@@ -589,14 +589,16 @@ function cardHtml(company) {
     ? `<div class="card-trust">${trustChips.join(' · ')}</div>`
     : '';
 
-  const reliabilityChips = [];
-  if (noShowRate > 0) reliabilityChips.push(`<span class="num">${noShowRate}%</span> ${t('card.noShow')}`);
-  if (cancelRate > 0) reliabilityChips.push(`<span class="num">${cancelRate}%</span> ${t('card.cancel')}`);
-  const reliabilityRow = reliabilityChips.length > 0
-    ? `<div class="card-reliability">${reliabilityChips.join(' · ')}</div>`
-    : '';
+  // Always surface reliability rates when there's at least one terminal booking,
+  // so a clean company (0%) looks visibly different from an unknown one (—).
+  const reliabilityRow = totalFinished > 0 ? `
+    <div class="card-reliability">
+      <span class="${noShowRate > 0 ? 'is-warn' : 'is-ok'}"><span class="num">${noShowRate}%</span> ${t('card.noShow')}</span>
+      <span class="dot">·</span>
+      <span class="${cancelRate > 0 ? 'is-warn' : 'is-ok'}"><span class="num">${cancelRate}%</span> ${t('card.cancel')}</span>
+    </div>` : '';
 
-  const statsRow = (trustChips.length || reliabilityChips.length)
+  const statsRow = (trustChips.length || reliabilityRow)
     ? `${trustRow}${reliabilityRow}`
     : `<div class="card-stats"><span class="stat muted">${t('card.noRidesYet')}</span></div>`;
 
