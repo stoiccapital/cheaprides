@@ -1,5 +1,50 @@
 // Cheaprides frontend — talks to the Cloudflare Worker API at /api/*.
 
+// ---------- i18n ----------
+let translations = { en: {}, de: {} };
+let currentLang = 'en';
+function t(key, params = {}) {
+  const str = (translations[currentLang] || {})[key] || (translations.en || {})[key] || key;
+  return str.replace(/\{(\w+)\}/g, (_, k) => params[k] != null ? params[k] : `{${k}}`);
+}
+function applyI18n(root = document) {
+  if (root === document) document.documentElement.lang = currentLang;
+  root.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    const attr = el.getAttribute('data-i18n-attr');
+    const value = t(key);
+    if (attr) el.setAttribute(attr, value);
+    else el.textContent = value;
+  });
+  document.querySelectorAll('.lang-btn').forEach(b => {
+    b.classList.toggle('is-active', b.dataset.lang === currentLang);
+  });
+}
+async function loadTranslations() {
+  try {
+    const res = await fetch('/i18n/translations.json');
+    translations = await res.json();
+  } catch (e) {
+    console.error('Failed to load translations', e);
+  }
+}
+function detectLang() {
+  const stored = localStorage.getItem('cr_lang');
+  if (stored === 'en' || stored === 'de') return stored;
+  return (navigator.language || 'en').toLowerCase().startsWith('de') ? 'de' : 'en';
+}
+function setLang(lang) {
+  if (lang !== 'en' && lang !== 'de') return;
+  currentLang = lang;
+  localStorage.setItem('cr_lang', lang);
+  applyI18n();
+  // Re-render all dynamic content so t() calls pick up the new language.
+  renderAuthState();
+  renderListAuthState();
+  renderCompanies();
+  renderBookings();
+}
+
 // ---------- State ----------
 let currentUser = null;      // { id, email, name } when logged in
 let companies = [];          // from /api/companies
@@ -52,15 +97,15 @@ function fmtPricePerKm(v) {
 function fmtRelativeTime(ts) {
   const diff = Date.now() - ts;
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return mins + ' min ago';
+  if (mins < 1) return t('time.justNow');
+  if (mins < 60) return t('time.minAgo', { n: mins });
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return hrs + ' h ago';
+  if (hrs < 24) return t('time.hAgo', { n: hrs });
   const days = Math.floor(hrs / 24);
-  if (days < 30) return days + ' d ago';
+  if (days < 30) return t('time.dAgo', { n: days });
   const months = Math.floor(days / 30);
-  if (months < 12) return months + ' mo ago';
-  return Math.floor(months / 12) + ' y ago';
+  if (months < 12) return t('time.moAgo', { n: months });
+  return t('time.yAgo', { n: Math.floor(months / 12) });
 }
 function escapeHtml(s) {
   return String(s)
@@ -80,7 +125,7 @@ function avgRating(reviews) {
 function computeFinalPrice(company, distance) {
   if (!distance || distance <= 0) return null;
   if (distance < company.min_km) {
-    return { unavailable: true, reason: `Min ${fmtKm(company.min_km)}` };
+    return { unavailable: true, reason: t('card.minKm', { km: fmtKm(company.min_km) }) };
   }
   return { unavailable: false, total: distance * company.price_per_km };
 }
@@ -186,19 +231,19 @@ function openAuth(mode) {
   const roleField = document.getElementById('auth-role-field');
 
   if (mode === 'signup') {
-    title.textContent = 'Create your account';
-    sub.textContent = 'Pick an account type to get started.';
-    submit.textContent = 'Sign up';
-    switchText.textContent = 'Already have an account?';
-    switchBtn.textContent = 'Log in instead';
+    title.textContent = t('auth.signupTitle');
+    sub.textContent = t('auth.signupSub');
+    submit.textContent = t('auth.signup');
+    switchText.textContent = t('auth.haveAccount');
+    switchBtn.textContent = t('auth.loginInstead');
     nameField.hidden = false;
     roleField.hidden = false;
   } else {
-    title.textContent = 'Log in';
-    sub.textContent = 'Welcome back.';
-    submit.textContent = 'Log in';
-    switchText.textContent = 'New here?';
-    switchBtn.textContent = 'Create an account';
+    title.textContent = t('auth.loginTitle');
+    sub.textContent = t('auth.loginSub');
+    submit.textContent = t('auth.login');
+    switchText.textContent = t('auth.newHere');
+    switchBtn.textContent = t('auth.createAccount');
     nameField.hidden = true;
     roleField.hidden = true;
   }
@@ -253,7 +298,8 @@ function renderAuthState() {
   const listTab = document.querySelector('[data-tab="list"]');
   if (currentUser) {
     authUserEl.hidden = false;
-    const roleBadge = `<span class="role-badge role-badge-${currentUser.role}">${currentUser.role === 'company' ? 'Company' : 'Passenger'}</span>`;
+    const roleLabel = currentUser.role === 'company' ? t('role.company') : t('role.passenger');
+    const roleBadge = `<span class="role-badge role-badge-${currentUser.role}">${roleLabel}</span>`;
     authUserEl.innerHTML = `<span class="auth-user-name">${escapeHtml(currentUser.name || currentUser.email)}</span>${roleBadge}`;
     btnLogout.hidden = false;
     btnLogin.hidden = true;
@@ -272,13 +318,15 @@ function renderAuthState() {
 function renderListAuthState() {
   if (!currentUser) {
     listAuthWarn.hidden = false;
-    listAuthWarn.innerHTML = '<p>You need to <button class="link-btn" data-auth="login">log in</button> or <button class="link-btn" data-auth="signup">sign up as a company</button> to list a company.</p>';
+    const loginLink = `<button class="link-btn" data-auth="login">${t('list.loginLink')}</button>`;
+    const signupLink = `<button class="link-btn" data-auth="signup">${t('list.signupLink')}</button>`;
+    listAuthWarn.innerHTML = `<p>${t('list.authWarnLoggedOut', { loginLink, signupLink })}</p>`;
     companyForm.hidden = true;
     return;
   }
   if (currentUser.role !== 'company') {
     listAuthWarn.hidden = false;
-    listAuthWarn.innerHTML = '<p>Your account is a <strong>passenger</strong> account. Only company accounts can list a company. Log out and sign up again as a company to continue.</p>';
+    listAuthWarn.innerHTML = `<p>${t('list.authWarnWrongRole')}</p>`;
     companyForm.hidden = true;
     return;
   }
@@ -301,14 +349,19 @@ function renderCompanies() {
   const filtered = pickupCity ? companies.filter(matchesCity) : companies;
   const sorted = sortCompanies(filtered, currentSort, currentDistance);
 
-  resultCount.innerHTML = `<span class="num">${sorted.length}</span> ${sorted.length === 1 ? 'company' : 'companies'}`;
+  resultCount.innerHTML = `<span class="num">${sorted.length}</span> ${sorted.length === 1 ? t('browse.company') : t('browse.companies')}`;
 
   if (sorted.length === 0) {
     grid.innerHTML = '';
     emptyState.hidden = false;
-    emptyState.innerHTML = pickupCity
-      ? `<p>No companies in <strong>${escapeHtml(pickupCity)}</strong> yet. <button class="link-btn" id="clear-city-inline">Clear city filter</button> or <button class="link-btn" data-goto="list">list your company</button>.</p>`
-      : `<p>No companies yet. Be the first to <button class="link-btn" data-goto="list">list your company</button>.</p>`;
+    const listLink = `<button class="link-btn" data-goto="list">${t('browse.listYourCompany')}</button>`;
+    if (pickupCity) {
+      const clearLink = `<button class="link-btn" id="clear-city-inline">${t('browse.clearCityInline')}</button>`;
+      const msg = t('browse.emptyNoCity', { city: `<strong>${escapeHtml(pickupCity)}</strong>`, clearLink, listLink });
+      emptyState.innerHTML = `<p>${msg}</p>`;
+    } else {
+      emptyState.innerHTML = `<p>${t('browse.emptyNoCompanies', { listLink })}</p>`;
+    }
     const clearInline = document.getElementById('clear-city-inline');
     if (clearInline) clearInline.addEventListener('click', clearCityFilter);
     return;
@@ -323,13 +376,13 @@ function cardHtml(company) {
   const final = computeFinalPrice(company, currentDistance);
 
   const priceLabel = isDefaultDistance
-    ? `Est. @ <span class="num">${DEFAULT_DISTANCE_KM} km</span>`
-    : 'Final price';
+    ? t('card.estAt', { km: `<span class="num">${DEFAULT_DISTANCE_KM} km</span>` })
+    : t('card.finalPrice');
   let priceBlock;
   if (final && final.unavailable) {
     priceBlock = `
       <div class="final-price unavailable">
-        <span class="label">Not available</span>
+        <span class="label">${t('card.notAvailable')}</span>
         <span class="value num">${final.reason}</span>
       </div>`;
   } else if (final) {
@@ -341,14 +394,14 @@ function cardHtml(company) {
   } else {
     priceBlock = `
       <div class="final-price">
-        <span class="label">Enter trip →</span>
+        <span class="label">${t('card.enterTrip')}</span>
         <span class="value num">—</span>
       </div>`;
   }
 
   const ratingBlock = company.reviews.length > 0
     ? `<span class="rating"><span class="star-icon">★</span><span class="num">${rating.toFixed(1)}</span><span class="count">(<span class="num">${company.reviews.length}</span>)</span></span>`
-    : `<span class="rating-new">New · no reviews</span>`;
+    : `<span class="rating-new">${t('card.newNoReviews')}</span>`;
 
   const s = {
     completed: company.stats_completed || 0,
@@ -361,34 +414,34 @@ function cardHtml(company) {
   const cancelRate = totalFinished > 0 ? pct(s.cancelled) : 0;
 
   const trustChips = [];
-  if (s.completed > 0) trustChips.push(`<span class="num">${s.completed}</span> trips`);
-  if (company.last_completed_at) trustChips.push(`last ride <span class="num">${fmtRelativeTime(company.last_completed_at)}</span>`);
+  if (s.completed > 0) trustChips.push(`<span class="num">${s.completed}</span> ${t('card.trips')}`);
+  if (company.last_completed_at) trustChips.push(t('card.lastRide', { time: `<span class="num">${fmtRelativeTime(company.last_completed_at)}</span>` }));
   const trustRow = trustChips.length > 0
     ? `<div class="card-trust">${trustChips.join(' · ')}</div>`
     : '';
 
   const reliabilityChips = [];
-  if (noShowRate > 0) reliabilityChips.push(`<span class="num">${noShowRate}%</span> no-show`);
-  if (cancelRate > 0) reliabilityChips.push(`<span class="num">${cancelRate}%</span> cancel`);
+  if (noShowRate > 0) reliabilityChips.push(`<span class="num">${noShowRate}%</span> ${t('card.noShow')}`);
+  if (cancelRate > 0) reliabilityChips.push(`<span class="num">${cancelRate}%</span> ${t('card.cancel')}`);
   const reliabilityRow = reliabilityChips.length > 0
     ? `<div class="card-reliability">${reliabilityChips.join(' · ')}</div>`
     : '';
 
   const statsRow = (trustChips.length || reliabilityChips.length)
     ? `${trustRow}${reliabilityRow}`
-    : `<div class="card-stats"><span class="stat muted">No completed rides yet</span></div>`;
+    : `<div class="card-stats"><span class="stat muted">${t('card.noRidesYet')}</span></div>`;
 
   const isCompanyAccount = currentUser && currentUser.role === 'company';
   const belowMin = currentDistance && currentDistance < company.min_km;
   let bookBtn;
   if (isCompanyAccount) {
-    bookBtn = `<span class="card-note">Companies can't book rides</span>`;
+    bookBtn = `<span class="card-note">${t('card.companiesCantBook')}</span>`;
   } else if (belowMin) {
-    bookBtn = `<span class="card-note">Min <span class="num">${fmtKm(company.min_km)}</span> required</span>`;
+    bookBtn = `<span class="card-note">${t('card.minKmRequired', { km: `<span class="num">${fmtKm(company.min_km)}</span>` })}</span>`;
   } else if (!currentDistance) {
-    bookBtn = `<button class="btn btn-primary btn-sm" data-action="focus-trip">Enter route to book</button>`;
+    bookBtn = `<button class="btn btn-primary btn-sm" data-action="focus-trip">${t('card.enterRouteToBook')}</button>`;
   } else {
-    bookBtn = `<button class="btn btn-primary btn-sm" data-action="book" data-id="${company.id}">Book now</button>`;
+    bookBtn = `<button class="btn btn-primary btn-sm" data-action="book" data-id="${company.id}">${t('card.bookNow')}</button>`;
   }
 
   return `
@@ -405,12 +458,12 @@ function cardHtml(company) {
       <div class="price-row">
         <div class="price-meta">
           <span><span class="mono">${fmtPricePerKm(company.price_per_km)}</span></span>
-          <span>min <span class="mono">${fmtKm(company.min_km)}</span></span>
+          <span>${t('card.min')} <span class="mono">${fmtKm(company.min_km)}</span></span>
         </div>
         ${priceBlock}
       </div>
       <div class="card-actions">
-        <button class="btn btn-ghost btn-sm" data-action="reviews" data-id="${company.id}">Reviews</button>
+        <button class="btn btn-ghost btn-sm" data-action="reviews" data-id="${company.id}">${t('card.reviews')}</button>
         ${bookBtn}
       </div>
     </article>
@@ -549,12 +602,12 @@ function attachAutocomplete(input, dropdown, onPick) {
     if (q.length < 3) { dropdown.hidden = true; return; }
     if (currentCtrl) currentCtrl.abort();
     currentCtrl = new AbortController();
-    dropdown.innerHTML = '<li class="ac-info">Searching…</li>';
+    dropdown.innerHTML = `<li class="ac-info">${t('ac.searching')}</li>`;
     dropdown.hidden = false;
     try {
       results = await searchNominatim(q, currentCtrl.signal);
       if (results.length === 0) {
-        dropdown.innerHTML = '<li class="ac-info">No matches found.</li>';
+        dropdown.innerHTML = `<li class="ac-info">${t('ac.noMatches')}</li>`;
         return;
       }
       dropdown.innerHTML = results.map((r, i) => {
@@ -568,7 +621,7 @@ function attachAutocomplete(input, dropdown, onPick) {
       activeIndex = -1;
     } catch (e) {
       if (e.name === 'AbortError') return;
-      dropdown.innerHTML = '<li class="ac-info">Lookup failed. Try again.</li>';
+      dropdown.innerHTML = `<li class="ac-info">${t('ac.lookupFailed')}</li>`;
     }
   }, 400);
 
@@ -619,7 +672,7 @@ async function maybeCalculateRoute() {
     updateTripSummary();
     renderCompanies();
   } catch {
-    distanceInput.placeholder = 'Route failed';
+    distanceInput.placeholder = t('ac.routeFailed');
   }
 }
 
@@ -644,26 +697,26 @@ companyForm.addEventListener('submit', async (e) => {
     await refreshCompanies();
     switchView('browse');
   } catch (err) {
-    alert('Could not publish listing: ' + err.message);
+    alert(t('alert.couldNotPublish', { msg: err.message }));
   }
 });
 
 // ---------- Booking ----------
 function onBookClick(companyId) {
   if (!currentUser) { openAuth('login'); return; }
-  if (currentUser.role !== 'passenger') { alert('Only passenger accounts can book rides.'); return; }
+  if (currentUser.role !== 'passenger') { alert(t('alert.onlyPassengers')); return; }
   const company = companies.find(c => c.id === companyId);
   if (!company) return;
-  if (!currentDistance) { alert('Enter pickup, dropoff, and distance first.'); return; }
+  if (!currentDistance) { alert(t('alert.enterRouteFirst')); return; }
   if (currentDistance < company.min_km) {
-    alert(`This company has a minimum of ${fmtKm(company.min_km)}.`);
+    alert(t('alert.minForCompany', { km: fmtKm(company.min_km) }));
     return;
   }
 
   bookingModalCompanyId = companyId;
   const route = `${pickupInput.value.trim() || '?'} → ${dropoffInput.value.trim() || '?'}`;
   const total = currentDistance * company.price_per_km;
-  document.getElementById('booking-modal-title').textContent = `Book ${company.name}`;
+  document.getElementById('booking-modal-title').textContent = `${t('booking.title')} — ${company.name}`;
   document.getElementById('booking-modal-sub').textContent = company.city;
   document.getElementById('bk-route').textContent = route;
   document.getElementById('bk-distance').textContent = fmtKm(Math.round(currentDistance));
@@ -685,7 +738,7 @@ bookingConfirmBtn.addEventListener('click', async () => {
     await refreshBookings();
     switchView('bookings');
   } catch (err) {
-    alert('Could not book: ' + err.message);
+    alert(t('alert.couldNotBook', { msg: err.message }));
   }
 });
 
@@ -711,6 +764,8 @@ document.querySelectorAll('#booking-filters .chip').forEach(chip => {
 
 function renderBookings() {
   if (!currentUser) {
+    const loginLink = `<button class="link-btn" data-auth="login">${t('auth.login').toLowerCase()}</button>`;
+    bookingsAuthWarn.innerHTML = `<p>${t('bookings.authWarn', { loginLink })}</p>`;
     bookingsAuthWarn.hidden = false;
     bookingsList.innerHTML = '';
     bookingsEmpty.hidden = true;
@@ -734,6 +789,8 @@ function renderBookings() {
 
   if (filtered.length === 0) {
     bookingsList.innerHTML = '';
+    const browseLink = `<button class="link-btn" data-goto="browse">${t('bookings.browseLink')}</button>`;
+    bookingsEmpty.innerHTML = `<p>${t('bookings.empty', { browseLink })}</p>`;
     bookingsEmpty.hidden = false;
     return;
   }
@@ -743,41 +800,41 @@ function renderBookings() {
 
 function bookingCardHtml(b) {
   const statuses = {
-    pending:   { label: 'Pending',   cls: 'status-pending' },
-    accepted:  { label: 'Accepted',  cls: 'status-accepted' },
-    completed: { label: 'Completed', cls: 'status-completed' },
-    cancelled: { label: 'Cancelled', cls: 'status-cancelled' },
-    noshow:    { label: 'No-show',   cls: 'status-noshow' },
-    declined:  { label: 'Declined',  cls: 'status-declined' },
+    pending:   { key: 'status.pending',   cls: 'status-pending' },
+    accepted:  { key: 'status.accepted',  cls: 'status-accepted' },
+    completed: { key: 'status.completed', cls: 'status-completed' },
+    cancelled: { key: 'status.cancelled', cls: 'status-cancelled' },
+    noshow:    { key: 'status.noshow',    cls: 'status-noshow' },
+    declined:  { key: 'status.declined',  cls: 'status-declined' },
   };
   const st = statuses[b.status] || statuses.pending;
 
   let actions = '';
   if (b.is_owner && b.status === 'pending') {
     actions = `
-      <button class="btn btn-primary btn-sm" data-booking-action="accept" data-id="${b.id}">Accept</button>
-      <button class="btn btn-ghost btn-sm" data-booking-action="decline" data-id="${b.id}">Decline</button>
+      <button class="btn btn-primary btn-sm" data-booking-action="accept" data-id="${b.id}">${t('bookings.accept')}</button>
+      <button class="btn btn-ghost btn-sm" data-booking-action="decline" data-id="${b.id}">${t('bookings.decline')}</button>
     `;
   } else if (b.is_owner && b.status === 'accepted') {
     actions = `
-      <button class="btn btn-primary btn-sm" data-booking-action="complete" data-id="${b.id}">Mark completed</button>
-      <button class="btn btn-ghost btn-sm" data-booking-action="noshow" data-id="${b.id}">No-show</button>
-      <button class="btn btn-ghost btn-sm" data-booking-action="cancel" data-id="${b.id}">Cancel</button>
+      <button class="btn btn-primary btn-sm" data-booking-action="complete" data-id="${b.id}">${t('bookings.complete')}</button>
+      <button class="btn btn-ghost btn-sm" data-booking-action="noshow" data-id="${b.id}">${t('bookings.noshow')}</button>
+      <button class="btn btn-ghost btn-sm" data-booking-action="cancel" data-id="${b.id}">${t('bookings.cancel')}</button>
     `;
   } else if (b.is_rider && b.status === 'completed' && !b.reviewed) {
-    actions = `<button class="btn btn-primary btn-sm" data-booking-action="rate" data-id="${b.id}">Rate this ride</button>`;
+    actions = `<button class="btn btn-primary btn-sm" data-booking-action="rate" data-id="${b.id}">${t('bookings.rate')}</button>`;
   }
 
   const roleTag = b.is_owner
-    ? `<span class="muted">as company</span>`
-    : `<span class="muted">as rider</span>`;
+    ? `<span class="muted">${t('bookings.asCompany')}</span>`
+    : `<span class="muted">${t('bookings.asRider')}</span>`;
   const timeTag = `<span class="num">${fmtRelativeTime(b.created_at)}</span>`;
 
   // Rider sees company contact details as soon as the booking exists.
   const contactBlock = (b.is_rider && (b.company_phone || b.company_email)) ? `
     <div class="booking-contact">
-      ${b.company_phone ? `<span><span class="contact-label">Phone</span><a href="tel:${escapeHtml(b.company_phone)}" class="mono">${escapeHtml(b.company_phone)}</a></span>` : ''}
-      ${b.company_email ? `<span><span class="contact-label">Email</span><a href="mailto:${escapeHtml(b.company_email)}">${escapeHtml(b.company_email)}</a></span>` : ''}
+      ${b.company_phone ? `<span><span class="contact-label">${t('bookings.phone')}</span><a href="tel:${escapeHtml(b.company_phone)}" class="mono">${escapeHtml(b.company_phone)}</a></span>` : ''}
+      ${b.company_email ? `<span><span class="contact-label">${t('bookings.email')}</span><a href="mailto:${escapeHtml(b.company_email)}">${escapeHtml(b.company_email)}</a></span>` : ''}
     </div>` : '';
 
   return `
@@ -787,7 +844,7 @@ function bookingCardHtml(b) {
           <h3 class="booking-company">${escapeHtml(b.company_name)}</h3>
           <span class="booking-meta">${roleTag} · ${timeTag}</span>
         </div>
-        <span class="status-badge ${st.cls}">${st.label}</span>
+        <span class="status-badge ${st.cls}">${t(st.key)}</span>
       </div>
       <div class="booking-route">${escapeHtml(b.pickup)} → ${escapeHtml(b.dropoff)}</div>
       <div class="booking-numbers num">
@@ -821,7 +878,7 @@ bookingsList.addEventListener('click', async (e) => {
     await api(`/bookings/${id}/action`, { method: 'POST', body: { action } });
     await Promise.all([refreshBookings(), refreshCompanies()]);
   } catch (err) {
-    alert('Could not update: ' + err.message);
+    alert(t('alert.couldNotUpdate', { msg: err.message }));
     btn.disabled = false;
   }
 });
@@ -836,9 +893,12 @@ function openReviewsModal(companyId, { canRate = false, bookingId = null } = {})
   updateStarUI();
   modalTitle.textContent = company.name;
   const avg = avgRating(company.reviews);
-  modalSub.textContent = company.reviews.length
-    ? `${avg.toFixed(1)} ★ · ${company.reviews.length} review${company.reviews.length === 1 ? '' : 's'}`
-    : 'No reviews yet';
+  if (company.reviews.length) {
+    const summaryKey = company.reviews.length === 1 ? 'reviews.summary' : 'reviews.summaryPlural';
+    modalSub.textContent = `${avg.toFixed(1)} ★ · ${t(summaryKey, { count: company.reviews.length })}`;
+  } else {
+    modalSub.textContent = t('reviews.summaryNone');
+  }
   renderReviews(company);
   reviewForm.reset();
   rateSection.hidden = !canRate;
@@ -847,14 +907,14 @@ function openReviewsModal(companyId, { canRate = false, bookingId = null } = {})
 
 function renderReviews(company) {
   if (!company.reviews || company.reviews.length === 0) {
-    reviewsList.innerHTML = '<p class="no-reviews">No reviews yet.</p>';
+    reviewsList.innerHTML = `<p class="no-reviews">${t('reviews.summaryNone')}.</p>`;
     return;
   }
   reviewsList.innerHTML = company.reviews.map(r => `
     <div class="review">
       <div class="review-head">
         <div>
-          <span class="review-author">${escapeHtml(r.author || 'Anonymous')}</span>
+          <span class="review-author">${escapeHtml(r.author || t('reviews.anonymous'))}</span>
           <span class="review-stars"> ${stars(r.rating)}</span>
         </div>
         <span class="review-time">${fmtRelativeTime(r.created_at)}</span>
@@ -886,7 +946,7 @@ function updateStarUI() {
 reviewForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   if (!modalBookingId || selectedRating < 1) {
-    alert('Please pick a rating.');
+    alert(t('alert.pickRating'));
     return;
   }
   const comment = document.getElementById('r-comment').value.trim();
@@ -899,7 +959,7 @@ reviewForm.addEventListener('submit', async (e) => {
     closeAllModals();
     await Promise.all([refreshCompanies(), refreshBookings()]);
   } catch (err) {
-    alert('Could not post review: ' + err.message);
+    alert(t('alert.couldNotPostReview', { msg: err.message }));
   }
 });
 
@@ -922,8 +982,18 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeAllModals();
 });
 
+// Language toggle
+document.querySelectorAll('.lang-btn').forEach(btn => {
+  btn.addEventListener('click', () => setLang(btn.dataset.lang));
+});
+
 // ---------- Init ----------
 async function init() {
+  // Language first so every subsequent render uses t().
+  currentLang = detectLang();
+  await loadTranslations();
+  applyI18n();
+
   // Seed the distance input so cards show an estimated price on first paint.
   distanceInput.value = DEFAULT_DISTANCE_KM;
 

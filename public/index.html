@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Cheaprides — The marketplace for ride companies</title>
-  <meta name="description" content="Browse ride companies, compare price per km, and book the cheapest ride for your route." />
+  <title data-i18n="html.title">Cheaprides — The marketplace for ride companies</title>
+  <meta name="description" data-i18n-attr="content" data-i18n="html.description" content="Browse ride companies, compare price per km, and book the cheapest ride for your route." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -18,15 +18,19 @@
         <span class="logo-text">Cheaprides</span>
       </a>
       <nav class="tabs" role="tablist">
-        <button class="tab is-active" data-view="browse" role="tab">Browse rides</button>
-        <button class="tab" data-view="bookings" role="tab">Bookings <span id="bookings-count" class="tab-count" hidden>0</span></button>
-        <button class="tab" data-view="list" role="tab" data-tab="list">List your company</button>
+        <button class="tab is-active" data-view="browse" role="tab"><span data-i18n="nav.browse">Browse rides</span></button>
+        <button class="tab" data-view="bookings" role="tab"><span data-i18n="nav.bookings">Bookings</span> <span id="bookings-count" class="tab-count" hidden>0</span></button>
+        <button class="tab" data-view="list" role="tab" data-tab="list" data-i18n="nav.list">List your company</button>
       </nav>
       <div class="auth-area">
+        <div class="lang-toggle" role="group" aria-label="Language">
+          <button class="lang-btn" data-lang="en">EN</button>
+          <button class="lang-btn" data-lang="de">DE</button>
+        </div>
         <span id="auth-user" class="auth-user" hidden></span>
-        <button id="btn-logout" class="btn btn-ghost btn-sm" hidden>Log out</button>
-        <button id="btn-login" class="btn btn-ghost btn-sm">Log in</button>
-        <button id="btn-signup" class="btn btn-primary btn-sm">Sign up</button>
+        <button id="btn-logout" class="btn btn-ghost btn-sm" hidden data-i18n="auth.logout">Log out</button>
+        <button id="btn-login" class="btn btn-ghost btn-sm" data-i18n="auth.login">Log in</button>
+        <button id="btn-signup" class="btn btn-primary btn-sm" data-i18n="auth.signup">Sign up</button>
       </div>
     </div>
   </header>
@@ -36,59 +40,57 @@
     <section id="view-browse" class="view is-active">
       <div class="container">
         <div class="hero">
-          <h1>Find the cheapest ride for your route.</h1>
-          <p class="lede">Compare companies by price per km, minimum distance, and driver ratings. Enter your trip to see the final price for each company.</p>
+          <h1 data-i18n="browse.heroTitle">Find the cheapest ride for your route.</h1>
+          <p class="lede" data-i18n="browse.heroLede">Compare companies by price per km, minimum distance, and driver ratings. Enter your trip to see the final price for each company.</p>
         </div>
 
         <button type="button" id="trip-compact" class="trip-compact" hidden>
           <span class="trip-compact-route" id="trip-compact-route">—</span>
-          <span class="trip-compact-edit">Edit</span>
+          <span class="trip-compact-edit" data-i18n="trip.edit">Edit</span>
         </button>
 
         <form id="trip-form" class="trip-form" autocomplete="off">
           <div class="field field-ac">
-            <label for="pickup">Pick up</label>
-            <input type="text" id="pickup" placeholder="e.g. Berlin Hbf" autocomplete="off" />
+            <label for="pickup" data-i18n="browse.pickup">Pick up</label>
+            <input type="text" id="pickup" data-i18n-attr="placeholder" data-i18n="browse.pickupPlaceholder" placeholder="e.g. Berlin Hbf" autocomplete="off" />
             <ul class="autocomplete" id="pickup-ac" hidden></ul>
           </div>
           <div class="field field-ac">
-            <label for="dropoff">Drop off</label>
-            <input type="text" id="dropoff" placeholder="e.g. Potsdam" autocomplete="off" />
+            <label for="dropoff" data-i18n="browse.dropoff">Drop off</label>
+            <input type="text" id="dropoff" data-i18n-attr="placeholder" data-i18n="browse.dropoffPlaceholder" placeholder="e.g. Potsdam" autocomplete="off" />
             <ul class="autocomplete" id="dropoff-ac" hidden></ul>
           </div>
           <div class="field field-sm">
-            <label for="distance">Distance</label>
+            <label for="distance" data-i18n="browse.distance">Distance</label>
             <div class="input-with-unit">
               <input type="number" id="distance" min="1" step="1" placeholder="25" />
               <span class="unit">km</span>
             </div>
           </div>
           <div class="field field-sm">
-            <label for="sort">Sort by</label>
+            <label for="sort" data-i18n="browse.sortBy">Sort by</label>
             <select id="sort">
-              <option value="price">Cheapest first</option>
-              <option value="rating">Highest rated</option>
-              <option value="newest">Newest listings</option>
+              <option value="price" data-i18n="browse.sortCheapest">Cheapest first</option>
+              <option value="rating" data-i18n="browse.sortRating">Highest rated</option>
+              <option value="newest" data-i18n="browse.sortNewest">Newest listings</option>
             </select>
           </div>
-          <button type="submit" class="btn btn-primary">Calculate</button>
+          <button type="submit" class="btn btn-primary" data-i18n="browse.calculate">Calculate</button>
         </form>
 
         <div class="list-meta">
           <div class="meta-left">
             <span id="result-count"><span class="num">0</span> companies</span>
             <span id="city-chip" class="city-chip" hidden>
-              <span>City: <strong id="city-chip-name"></strong></span>
-              <button id="city-chip-clear" class="chip-clear" aria-label="Clear city filter">✕</button>
+              <span><span data-i18n="browse.city">City</span>: <strong id="city-chip-name"></strong></span>
+              <button id="city-chip-clear" class="chip-clear" data-i18n-attr="aria-label" data-i18n="browse.clearCity" aria-label="Clear city filter">✕</button>
             </span>
           </div>
           <span id="trip-summary" class="trip-summary"></span>
         </div>
 
         <div id="company-grid" class="company-grid"></div>
-        <div id="empty-state" class="empty-state" hidden>
-          <p>No companies yet. Be the first to <button class="link-btn" data-goto="list">list your company</button>.</p>
-        </div>
+        <div id="empty-state" class="empty-state" hidden></div>
       </div>
     </section>
 
@@ -96,26 +98,22 @@
     <section id="view-bookings" class="view">
       <div class="container">
         <div class="hero">
-          <h1>Bookings dashboard.</h1>
-          <p class="lede">Companies accept, complete, or cancel. Riders rate the company only after a completed trip.</p>
+          <h1 data-i18n="bookings.heroTitle">Bookings dashboard.</h1>
+          <p class="lede" data-i18n="bookings.heroLede">Companies accept, complete, or cancel. Riders rate the company only after a completed trip.</p>
         </div>
 
-        <div id="bookings-auth-warn" class="empty-state" hidden>
-          <p>You need to <button class="link-btn" data-auth="login">log in</button> to see your bookings.</p>
-        </div>
+        <div id="bookings-auth-warn" class="empty-state" hidden></div>
 
         <div class="booking-filters" id="booking-filters">
-          <button class="chip is-active" data-filter="all">All</button>
-          <button class="chip" data-filter="pending">Pending</button>
-          <button class="chip" data-filter="accepted">Accepted</button>
-          <button class="chip" data-filter="completed">Completed</button>
-          <button class="chip" data-filter="cancelled">Cancelled / No-show</button>
+          <button class="chip is-active" data-filter="all" data-i18n="bookings.filterAll">All</button>
+          <button class="chip" data-filter="pending" data-i18n="bookings.filterPending">Pending</button>
+          <button class="chip" data-filter="accepted" data-i18n="bookings.filterAccepted">Accepted</button>
+          <button class="chip" data-filter="completed" data-i18n="bookings.filterCompleted">Completed</button>
+          <button class="chip" data-filter="cancelled" data-i18n="bookings.filterCancelled">Cancelled / No-show</button>
         </div>
 
         <div id="bookings-list" class="bookings-list"></div>
-        <div id="bookings-empty" class="empty-state" hidden>
-          <p>No bookings yet. Head to <button class="link-btn" data-goto="browse">browse rides</button> and book one.</p>
-        </div>
+        <div id="bookings-empty" class="empty-state" hidden></div>
       </div>
     </section>
 
@@ -123,68 +121,66 @@
     <section id="view-list" class="view">
       <div class="container container-sm">
         <div class="hero">
-          <h1>Register your ride company.</h1>
-          <p class="lede">We need your business details for billing and compliance. Drivers see your listing as soon as you publish.</p>
+          <h1 data-i18n="list.heroTitle">Register your ride company.</h1>
+          <p class="lede" data-i18n="list.heroLede">We need your business details for billing and compliance. Drivers see your listing as soon as you publish.</p>
         </div>
 
-        <div id="list-auth-warn" class="empty-state" hidden>
-          <p>You need to <button class="link-btn" data-auth="login">log in</button> to list a company.</p>
-        </div>
+        <div id="list-auth-warn" class="empty-state" hidden></div>
 
         <form id="company-form" class="company-form" autocomplete="off" hidden>
           <div class="field">
-            <label for="c-name">Company name</label>
-            <input type="text" id="c-name" required maxlength="80" placeholder="e.g. Berlin Express Cars GmbH" />
+            <label for="c-name" data-i18n="list.companyName">Company name</label>
+            <input type="text" id="c-name" required maxlength="80" data-i18n-attr="placeholder" data-i18n="list.companyNamePlaceholder" placeholder="e.g. Berlin Express Cars GmbH" />
           </div>
           <div class="field">
-            <label for="c-director">Managing director</label>
-            <input type="text" id="c-director" required maxlength="80" placeholder="Full name" />
+            <label for="c-director" data-i18n="list.director">Managing director</label>
+            <input type="text" id="c-director" required maxlength="80" data-i18n-attr="placeholder" data-i18n="list.directorPlaceholder" placeholder="Full name" />
           </div>
           <div class="field">
-            <label for="c-address">Billing address</label>
-            <textarea id="c-address" required rows="2" maxlength="200" placeholder="Street, ZIP, City, Country"></textarea>
+            <label for="c-address" data-i18n="list.address">Billing address</label>
+            <textarea id="c-address" required rows="2" maxlength="200" data-i18n-attr="placeholder" data-i18n="list.addressPlaceholder" placeholder="Street, ZIP, City, Country"></textarea>
           </div>
           <div class="row">
             <div class="field">
-              <label for="c-city">Operating city</label>
-              <input type="text" id="c-city" required maxlength="40" placeholder="e.g. Berlin" />
+              <label for="c-city" data-i18n="list.city">Operating city</label>
+              <input type="text" id="c-city" required maxlength="40" data-i18n-attr="placeholder" data-i18n="list.cityPlaceholder" placeholder="e.g. Berlin" />
             </div>
             <div class="field">
-              <label for="c-vat">VAT number</label>
-              <input type="text" id="c-vat" required maxlength="40" placeholder="DE123456789" />
+              <label for="c-vat" data-i18n="list.vat">VAT number</label>
+              <input type="text" id="c-vat" required maxlength="40" data-i18n-attr="placeholder" data-i18n="list.vatPlaceholder" placeholder="DE123456789" />
             </div>
           </div>
           <div class="row">
             <div class="field">
-              <label for="c-phone">Contact phone</label>
-              <input type="tel" id="c-phone" required maxlength="40" placeholder="+49 30 1234567" />
+              <label for="c-phone" data-i18n="list.phone">Contact phone</label>
+              <input type="tel" id="c-phone" required maxlength="40" data-i18n-attr="placeholder" data-i18n="list.phonePlaceholder" placeholder="+49 30 1234567" />
             </div>
             <div class="field">
-              <label for="c-email">Contact email</label>
-              <input type="email" id="c-email" required maxlength="80" placeholder="dispatch@yourcompany.de" />
+              <label for="c-email" data-i18n="list.email">Contact email</label>
+              <input type="email" id="c-email" required maxlength="80" data-i18n-attr="placeholder" data-i18n="list.emailPlaceholder" placeholder="dispatch@yourcompany.de" />
             </div>
           </div>
           <div class="field">
-            <label for="c-desc">Short description</label>
-            <textarea id="c-desc" rows="2" maxlength="140" placeholder="One line about your fleet or service."></textarea>
+            <label for="c-desc" data-i18n="list.description">Short description</label>
+            <textarea id="c-desc" rows="2" maxlength="140" data-i18n-attr="placeholder" data-i18n="list.descriptionPlaceholder" placeholder="One line about your fleet or service."></textarea>
           </div>
           <div class="row">
             <div class="field">
-              <label for="c-price">Price per km</label>
+              <label for="c-price" data-i18n="list.pricePerKm">Price per km</label>
               <div class="input-with-unit">
                 <input type="number" id="c-price" required min="0.1" step="0.1" placeholder="1.50" />
                 <span class="unit">€/km</span>
               </div>
             </div>
             <div class="field">
-              <label for="c-min">Minimum distance</label>
+              <label for="c-min" data-i18n="list.minDistance">Minimum distance</label>
               <div class="input-with-unit">
                 <input type="number" id="c-min" required min="1" step="1" placeholder="10" />
                 <span class="unit">km</span>
               </div>
             </div>
           </div>
-          <button type="submit" class="btn btn-primary">Publish listing</button>
+          <button type="submit" class="btn btn-primary" data-i18n="list.publish">Publish listing</button>
         </form>
       </div>
     </section>
@@ -203,14 +199,14 @@
       </header>
       <div class="modal-body">
         <section class="reviews-section">
-          <h3>Reviews</h3>
+          <h3 data-i18n="reviews.heading">Reviews</h3>
           <div id="reviews-list" class="reviews-list"></div>
         </section>
         <section id="rate-section" class="rate-section" hidden>
-          <h3>Leave a review</h3>
+          <h3 data-i18n="reviews.leaveTitle">Leave a review</h3>
           <form id="review-form" class="review-form">
             <div class="field">
-              <label>Your rating</label>
+              <label data-i18n="reviews.rating">Your rating</label>
               <div id="star-input" class="star-input" role="radiogroup" aria-label="Rating">
                 <button type="button" class="star" data-value="1">★</button>
                 <button type="button" class="star" data-value="2">★</button>
@@ -220,10 +216,10 @@
               </div>
             </div>
             <div class="field">
-              <label for="r-comment">Comment</label>
-              <textarea id="r-comment" rows="3" maxlength="300" placeholder="How was the ride?"></textarea>
+              <label for="r-comment" data-i18n="reviews.comment">Comment</label>
+              <textarea id="r-comment" rows="3" maxlength="300" data-i18n-attr="placeholder" data-i18n="reviews.commentPlaceholder" placeholder="How was the ride?"></textarea>
             </div>
-            <button type="submit" class="btn btn-primary">Post review</button>
+            <button type="submit" class="btn btn-primary" data-i18n="reviews.post">Post review</button>
           </form>
         </section>
       </div>
@@ -236,19 +232,19 @@
     <div class="modal-dialog modal-sm" role="dialog" aria-modal="true" aria-labelledby="booking-modal-title">
       <header class="modal-header">
         <div>
-          <h2 id="booking-modal-title">Book this ride</h2>
+          <h2 id="booking-modal-title" data-i18n="booking.title">Book this ride</h2>
           <p id="booking-modal-sub" class="muted"></p>
         </div>
         <button class="icon-btn" data-close aria-label="Close">✕</button>
       </header>
       <div class="modal-body">
         <div class="booking-summary">
-          <div class="summary-row"><span class="summary-label">Route</span><span class="summary-value" id="bk-route">—</span></div>
-          <div class="summary-row"><span class="summary-label">Distance</span><span class="summary-value num" id="bk-distance">—</span></div>
-          <div class="summary-row"><span class="summary-label">Rate</span><span class="summary-value num" id="bk-rate">—</span></div>
-          <div class="summary-row total"><span class="summary-label">Total</span><span class="summary-value num" id="bk-total">—</span></div>
+          <div class="summary-row"><span class="summary-label" data-i18n="booking.route">Route</span><span class="summary-value" id="bk-route">—</span></div>
+          <div class="summary-row"><span class="summary-label" data-i18n="booking.distance">Distance</span><span class="summary-value num" id="bk-distance">—</span></div>
+          <div class="summary-row"><span class="summary-label" data-i18n="booking.rate">Rate</span><span class="summary-value num" id="bk-rate">—</span></div>
+          <div class="summary-row total"><span class="summary-label" data-i18n="booking.total">Total</span><span class="summary-value num" id="bk-total">—</span></div>
         </div>
-        <button id="booking-confirm" type="button" class="btn btn-primary">Request ride</button>
+        <button id="booking-confirm" type="button" class="btn btn-primary" data-i18n="booking.requestRide">Request ride</button>
       </div>
     </div>
   </div>
@@ -267,41 +263,41 @@
       <div class="modal-body">
         <form id="auth-form" class="review-form">
           <div class="field" id="auth-role-field" hidden>
-            <label>Account type</label>
+            <label data-i18n="auth.accountType">Account type</label>
             <div class="role-picker" role="radiogroup" aria-label="Account type">
               <label class="role-opt">
                 <input type="radio" name="a-role" value="passenger" checked />
                 <span class="role-opt-body">
-                  <strong>Passenger</strong>
-                  <span class="muted">Book rides and leave reviews.</span>
+                  <strong data-i18n="auth.rolePassenger">Passenger</strong>
+                  <span class="muted" data-i18n="auth.rolePassengerDesc">Book rides and leave reviews.</span>
                 </span>
               </label>
               <label class="role-opt">
                 <input type="radio" name="a-role" value="company" />
                 <span class="role-opt-body">
-                  <strong>Company</strong>
-                  <span class="muted">List your fleet and accept bookings.</span>
+                  <strong data-i18n="auth.roleCompany">Company</strong>
+                  <span class="muted" data-i18n="auth.roleCompanyDesc">List your fleet and accept bookings.</span>
                 </span>
               </label>
             </div>
           </div>
           <div class="field" id="auth-name-field" hidden>
-            <label for="a-name">Your name</label>
-            <input type="text" id="a-name" maxlength="40" placeholder="Alex" />
+            <label for="a-name" data-i18n="auth.name">Your name</label>
+            <input type="text" id="a-name" maxlength="40" data-i18n-attr="placeholder" data-i18n="auth.namePlaceholder" placeholder="Alex" />
           </div>
           <div class="field">
-            <label for="a-email">Email</label>
-            <input type="email" id="a-email" required placeholder="you@example.com" />
+            <label for="a-email" data-i18n="auth.email">Email</label>
+            <input type="email" id="a-email" required data-i18n-attr="placeholder" data-i18n="auth.emailPlaceholder" placeholder="you@example.com" />
           </div>
           <div class="field">
-            <label for="a-password">Password</label>
-            <input type="password" id="a-password" required minlength="8" placeholder="At least 8 characters" />
+            <label for="a-password" data-i18n="auth.password">Password</label>
+            <input type="password" id="a-password" required minlength="8" data-i18n-attr="placeholder" data-i18n="auth.passwordPlaceholder" placeholder="At least 8 characters" />
           </div>
           <p id="auth-error" class="auth-error" hidden></p>
-          <button type="submit" class="btn btn-primary" id="auth-submit">Log in</button>
+          <button type="submit" class="btn btn-primary" id="auth-submit" data-i18n="auth.login">Log in</button>
           <p class="muted" style="text-align:center;margin:0;">
-            <span id="auth-switch-text">New here?</span>
-            <button type="button" class="link-btn" id="auth-switch">Create an account</button>
+            <span id="auth-switch-text" data-i18n="auth.newHere">New here?</span>
+            <button type="button" class="link-btn" id="auth-switch" data-i18n="auth.createAccount">Create an account</button>
           </p>
         </form>
       </div>
@@ -310,7 +306,7 @@
 
   <footer class="site-footer">
     <div class="container">
-      <span class="muted">Cheaprides — a marketplace demo.</span>
+      <span class="muted" data-i18n="footer.text">Cheaprides — a marketplace demo.</span>
     </div>
   </footer>
 
