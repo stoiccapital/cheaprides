@@ -561,6 +561,7 @@ body {
   display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
   padding-top: 10px; border-top: 1px dashed var(--border);
 }
+.listing-stats-3 { grid-template-columns: repeat(3, 1fr); }
 .listing-stat {
   display: flex; flex-direction: column; gap: 2px;
   padding: 10px 12px; border-radius: var(--radius);

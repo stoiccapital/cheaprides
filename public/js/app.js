@@ -394,7 +394,6 @@ function renderMyListings() {
     const totalFinished = completed + cancelled + noshow;
     const received = c.total_received || 0;
     const declined = c.total_declined || 0;
-    const noShowPct = totalFinished > 0 ? Math.round((noshow / totalFinished) * 100) : null;
     const cancelPct = totalFinished > 0 ? Math.round((cancelled / totalFinished) * 100) : null;
     const acceptPct = received > 0 ? Math.round(((received - declined) / received) * 100) : null;
     const fmt = (v) => v === null ? '—' : `${v}%`;
@@ -413,7 +412,7 @@ function renderMyListings() {
           <span><span class="num">${fmtPricePerKm(c.price_per_km)}</span></span>
           <span>${t('card.min')} <span class="num">${fmtKm(c.min_km)}</span></span>
         </div>
-        <div class="listing-stats">
+        <div class="listing-stats listing-stats-3">
           <div class="listing-stat">
             <span class="listing-stat-label">${t('listing.trips')}</span>
             <span class="listing-stat-value num">${completed}</span>
@@ -421,10 +420,6 @@ function renderMyListings() {
           <div class="listing-stat">
             <span class="listing-stat-label">${t('listing.acceptance')}</span>
             <span class="listing-stat-value num">${fmt(acceptPct)}</span>
-          </div>
-          <div class="listing-stat ${noShowPct > 0 ? 'is-warn' : ''}">
-            <span class="listing-stat-label">${t('listing.noShow')}</span>
-            <span class="listing-stat-value num">${fmt(noShowPct)}</span>
           </div>
           <div class="listing-stat ${cancelPct > 0 ? 'is-warn' : ''}">
             <span class="listing-stat-label">${t('listing.cancel')}</span>
@@ -589,12 +584,10 @@ function cardHtml(company) {
     ? `<div class="card-trust">${trustChips.join(' · ')}</div>`
     : '';
 
-  // Always surface reliability rates when there's at least one terminal booking,
+  // Always surface the cancel rate when there's at least one terminal booking,
   // so a clean company (0%) looks visibly different from an unknown one (—).
   const reliabilityRow = totalFinished > 0 ? `
     <div class="card-reliability">
-      <span class="${noShowRate > 0 ? 'is-warn' : 'is-ok'}"><span class="num">${noShowRate}%</span> ${t('card.noShow')}</span>
-      <span class="dot">·</span>
       <span class="${cancelRate > 0 ? 'is-warn' : 'is-ok'}"><span class="num">${cancelRate}%</span> ${t('card.cancel')}</span>
     </div>` : '';
 
@@ -997,7 +990,6 @@ function bookingCardHtml(b) {
   } else if (b.is_owner && b.status === 'accepted') {
     actions = `
       <button class="btn btn-primary btn-sm" data-booking-action="complete" data-id="${b.id}">${t('bookings.complete')}</button>
-      <button class="btn btn-ghost btn-sm" data-booking-action="noshow" data-id="${b.id}">${t('bookings.noshow')}</button>
       <button class="btn btn-ghost btn-sm" data-booking-action="cancel" data-id="${b.id}">${t('bookings.cancel')}</button>
     `;
   } else if (b.is_rider && b.status === 'completed' && !b.reviewed) {
