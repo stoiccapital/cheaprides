@@ -233,9 +233,12 @@ body {
 .final-price.unavailable .value { color: var(--warn); font-size: 15px; }
 
 .card-actions {
-  display: flex; gap: 8px; justify-content: flex-end;
+  display: flex; gap: 8px; justify-content: flex-end; align-items: center;
 }
 .card-actions .btn { padding: 8px 14px; font-size: 13px; }
+.card-note {
+  color: var(--text-mute); font-size: 12px; font-style: italic;
+}
 
 /* ---------- Empty state ---------- */
 .empty-state {

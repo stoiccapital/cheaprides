@@ -4,7 +4,9 @@
 let currentUser = null;      // { id, email, name } when logged in
 let companies = [];          // from /api/companies
 let bookings = [];           // from /api/bookings (only when logged in)
-let currentDistance = null;
+const DEFAULT_DISTANCE_KM = 25;
+let currentDistance = DEFAULT_DISTANCE_KM;
+let isDefaultDistance = true;  // true until user commits a route/distance
 let currentSort = 'price';
 let bookingsFilter = 'all';
 let pickupCity = null;
@@ -288,7 +290,7 @@ function renderCompanies() {
   const filtered = pickupCity ? companies.filter(matchesCity) : companies;
   const sorted = sortCompanies(filtered, currentSort, currentDistance);
 
-  resultCount.textContent = sorted.length + (sorted.length === 1 ? ' company' : ' companies');
+  resultCount.innerHTML = `<span class="num">${sorted.length}</span> ${sorted.length === 1 ? 'company' : 'companies'}`;
 
   if (sorted.length === 0) {
     grid.innerHTML = '';
@@ -309,11 +311,10 @@ function cardHtml(company) {
   const rating = avgRating(company.reviews);
   const final = computeFinalPrice(company, currentDistance);
 
-  let priceBlock = `
-    <div class="final-price">
-      <span class="label">Enter trip →</span>
-      <span class="value num">—</span>
-    </div>`;
+  const priceLabel = isDefaultDistance
+    ? `Est. @ <span class="num">${DEFAULT_DISTANCE_KM} km</span>`
+    : 'Final price';
+  let priceBlock;
   if (final && final.unavailable) {
     priceBlock = `
       <div class="final-price unavailable">
@@ -323,8 +324,14 @@ function cardHtml(company) {
   } else if (final) {
     priceBlock = `
       <div class="final-price">
-        <span class="label">Final price</span>
+        <span class="label">${priceLabel}</span>
         <span class="value num">${fmtEuro(final.total)}</span>
+      </div>`;
+  } else {
+    priceBlock = `
+      <div class="final-price">
+        <span class="label">Enter trip →</span>
+        <span class="value num">—</span>
       </div>`;
   }
 
@@ -354,14 +361,16 @@ function cardHtml(company) {
     </div>`;
 
   const isCompanyAccount = currentUser && currentUser.role === 'company';
-  const canBook = currentDistance && currentDistance >= company.min_km && !isCompanyAccount;
+  const belowMin = currentDistance && currentDistance < company.min_km;
   let bookBtn;
   if (isCompanyAccount) {
-    bookBtn = `<button class="btn btn-primary btn-sm" disabled title="Company accounts can't book rides">Book now</button>`;
-  } else if (canBook) {
-    bookBtn = `<button class="btn btn-primary btn-sm" data-action="book" data-id="${company.id}">Book now</button>`;
+    bookBtn = `<span class="card-note">Companies can't book rides</span>`;
+  } else if (belowMin) {
+    bookBtn = `<span class="card-note">Min <span class="num">${fmtKm(company.min_km)}</span> required</span>`;
+  } else if (!currentDistance) {
+    bookBtn = `<button class="btn btn-primary btn-sm" data-action="focus-trip">Enter route to book</button>`;
   } else {
-    bookBtn = `<button class="btn btn-primary btn-sm" disabled title="Enter a route first">Book now</button>`;
+    bookBtn = `<button class="btn btn-primary btn-sm" data-action="book" data-id="${company.id}">Book now</button>`;
   }
 
   return `
@@ -396,6 +405,11 @@ grid.addEventListener('click', (e) => {
   const id = btn.dataset.id;
   if (btn.dataset.action === 'reviews') openReviewsModal(id, { canRate: false });
   if (btn.dataset.action === 'book') onBookClick(id);
+  if (btn.dataset.action === 'focus-trip') {
+    document.body.classList.remove('has-trip');
+    pickupInput.focus();
+    pickupInput.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 });
 
 // ---------- Trip form ----------
@@ -409,6 +423,7 @@ tripForm.addEventListener('submit', (e) => {
   e.preventDefault();
   const d = parseFloat(distanceInput.value);
   currentDistance = isNaN(d) || d <= 0 ? null : d;
+  isDefaultDistance = false;
   updateTripSummary();
   renderCompanies();
 });
@@ -420,7 +435,7 @@ sortSelect.addEventListener('change', () => {
 function updateTripSummary() {
   const pickup = pickupInput.value.trim();
   const dropoff = dropoffInput.value.trim();
-  if (!currentDistance) {
+  if (!currentDistance || isDefaultDistance) {
     tripSummary.textContent = '';
     document.body.classList.remove('has-trip');
     document.body.classList.remove('editing-trip');
@@ -558,6 +573,7 @@ async function maybeCalculateRoute() {
     distanceInput.value = Math.round(km);
     distanceInput.placeholder = '25';
     currentDistance = km;
+    isDefaultDistance = false;
     updateTripSummary();
     renderCompanies();
   } catch {
@@ -713,6 +729,7 @@ function bookingCardHtml(b) {
   const roleTag = b.is_owner
     ? `<span class="muted">as company</span>`
     : `<span class="muted">as rider</span>`;
+  const timeTag = `<span class="num">${fmtRelativeTime(b.created_at)}</span>`;
 
   // Rider sees company contact details as soon as the booking exists.
   const contactBlock = (b.is_rider && (b.company_phone || b.company_email)) ? `
@@ -726,7 +743,7 @@ function bookingCardHtml(b) {
       <div class="booking-head">
         <div>
           <h3 class="booking-company">${escapeHtml(b.company_name)}</h3>
-          <span class="booking-meta">${roleTag} · ${fmtRelativeTime(b.created_at)}</span>
+          <span class="booking-meta">${roleTag} · ${timeTag}</span>
         </div>
         <span class="status-badge ${st.cls}">${st.label}</span>
       </div>
@@ -865,6 +882,9 @@ document.addEventListener('keydown', (e) => {
 
 // ---------- Init ----------
 async function init() {
+  // Seed the distance input so cards show an estimated price on first paint.
+  distanceInput.value = DEFAULT_DISTANCE_KM;
+
   renderAuthState();
   renderListAuthState();
   try {
