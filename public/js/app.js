@@ -206,8 +206,19 @@ function openAuth(mode) {
   authForm.reset();
   const defaultRole = document.querySelector('input[name="a-role"][value="passenger"]');
   if (defaultRole) defaultRole.checked = true;
+  syncRolePicker();
   openModalEl(authModal);
 }
+
+function syncRolePicker() {
+  document.querySelectorAll('.role-opt').forEach(opt => {
+    const input = opt.querySelector('input');
+    opt.classList.toggle('is-selected', input && input.checked);
+  });
+}
+document.addEventListener('change', (e) => {
+  if (e.target.matches && e.target.matches('input[name="a-role"]')) syncRolePicker();
+});
 
 document.getElementById('auth-switch').addEventListener('click', () => {
   openAuth(authMode === 'login' ? 'signup' : 'login');
@@ -336,8 +347,8 @@ function cardHtml(company) {
   }
 
   const ratingBlock = company.reviews.length > 0
-    ? `<span class="rating"><span class="star-icon">★</span><span>${rating.toFixed(1)}</span><span class="count">(${company.reviews.length})</span></span>`
-    : `<span class="rating"><span class="star-icon" style="color:var(--text-mute)">★</span><span class="count">No reviews</span></span>`;
+    ? `<span class="rating"><span class="star-icon">★</span><span class="num">${rating.toFixed(1)}</span><span class="count">(<span class="num">${company.reviews.length}</span>)</span></span>`
+    : `<span class="rating-new">New · no reviews</span>`;
 
   const s = {
     completed: company.stats_completed || 0,
@@ -516,6 +527,23 @@ function extractCity(r) {
 function attachAutocomplete(input, dropdown, onPick) {
   let currentCtrl = null;
   let results = [];
+  let activeIndex = -1;
+
+  const setActive = (idx) => {
+    const items = dropdown.querySelectorAll('li[data-index]');
+    if (items.length === 0) { activeIndex = -1; return; }
+    activeIndex = Math.max(0, Math.min(idx, items.length - 1));
+    items.forEach((li, i) => li.classList.toggle('is-active', i === activeIndex));
+    items[activeIndex].scrollIntoView({ block: 'nearest' });
+  };
+
+  const pick = (r) => {
+    input.value = r.display_name;
+    dropdown.hidden = true;
+    activeIndex = -1;
+    onPick({ lat: parseFloat(r.lat), lon: parseFloat(r.lon), label: r.display_name, city: extractCity(r) });
+  };
+
   const run = debounce(async () => {
     const q = input.value.trim();
     if (q.length < 3) { dropdown.hidden = true; return; }
@@ -537,6 +565,7 @@ function attachAutocomplete(input, dropdown, onPick) {
             <span class="ac-sub">${escapeHtml(parts.slice(1).join(',').trim())}</span>
           </li>`;
       }).join('');
+      activeIndex = -1;
     } catch (e) {
       if (e.name === 'AbortError') return;
       dropdown.innerHTML = '<li class="ac-info">Lookup failed. Try again.</li>';
@@ -548,14 +577,20 @@ function attachAutocomplete(input, dropdown, onPick) {
     if (dropdown.children.length > 0 && input.value.trim().length >= 3) dropdown.hidden = false;
   });
   input.addEventListener('blur', () => setTimeout(() => { dropdown.hidden = true; }, 150));
+  input.addEventListener('keydown', (e) => {
+    if (dropdown.hidden || results.length === 0) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActive(activeIndex + 1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(activeIndex - 1); }
+    else if (e.key === 'Enter') {
+      const idx = activeIndex >= 0 ? activeIndex : 0;
+      if (results[idx]) { e.preventDefault(); pick(results[idx]); }
+    } else if (e.key === 'Escape') { dropdown.hidden = true; }
+  });
   dropdown.addEventListener('mousedown', (e) => {
     const li = e.target.closest('li[data-index]');
     if (!li) return;
     const r = results[parseInt(li.dataset.index, 10)];
-    if (!r) return;
-    input.value = r.display_name;
-    dropdown.hidden = true;
-    onPick({ lat: parseFloat(r.lat), lon: parseFloat(r.lon), label: r.display_name, city: extractCity(r) });
+    if (r) pick(r);
   });
 }
 
