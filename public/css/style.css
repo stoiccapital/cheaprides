@@ -30,6 +30,9 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* The HTML `hidden` attribute must beat our class-level display rules. */
+[hidden] { display: none !important; }
+
 /* ---------- Global focus-visible for keyboard a11y ---------- */
 *:focus { outline: none; }
 *:focus-visible {
@@ -549,6 +552,24 @@ body {
   font-size: 13px; color: var(--text-dim);
 }
 .listing-meta .num { color: var(--text); font-family: var(--mono); }
+.listing-stats {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+  padding-top: 10px; border-top: 1px dashed var(--border);
+}
+.listing-stat {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 10px 12px; border-radius: var(--radius);
+  background: var(--bg-elev-2); border: 1px solid var(--border);
+}
+.listing-stat-label {
+  font-size: 11px; color: var(--text-mute);
+  text-transform: uppercase; letter-spacing: 0.05em;
+}
+.listing-stat-value {
+  font-size: 18px; font-weight: 600; color: var(--text);
+}
+.listing-stat.is-warn .listing-stat-value { color: var(--warn); }
+
 .listing-contact {
   display: flex; flex-wrap: wrap; gap: 14px;
   font-size: 12px; color: var(--text-mute);
@@ -673,6 +694,9 @@ body {
   .booking-actions { flex-direction: column; }
   .booking-actions .btn { width: 100%; min-height: 44px; }
   .booking-route { font-size: 13px; }
+
+  /* Listing stats collapse 4 -> 2 per row on narrow screens */
+  .listing-stats { grid-template-columns: 1fr 1fr; }
 
   /* Booking confirm modal summary: let long routes truncate */
   .summary-row { gap: 12px; }

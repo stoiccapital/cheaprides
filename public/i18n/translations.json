@@ -140,6 +140,10 @@
     "list.priceUnit": "€/km",
     "list.perTrip": "per trip",
     "list.statsLine": "{trips} trips · {noShow}% no-show · {cancel}% cancel",
+    "listing.trips": "Completed trips",
+    "listing.acceptance": "Acceptance rate",
+    "listing.noShow": "No-show rate",
+    "listing.cancel": "Cancel rate",
 
     "reviews.heading": "Reviews",
     "reviews.leaveTitle": "Leave a review",
@@ -326,6 +330,10 @@
     "list.priceUnit": "€/km",
     "list.perTrip": "pro Fahrt",
     "list.statsLine": "{trips} Fahrten · {noShow}% nicht erschienen · {cancel}% storniert",
+    "listing.trips": "Abgeschlossene Fahrten",
+    "listing.acceptance": "Annahmerate",
+    "listing.noShow": "Nicht-erschienen-Rate",
+    "listing.cancel": "Stornoquote",
 
     "reviews.heading": "Bewertungen",
     "reviews.leaveTitle": "Bewertung abgeben",

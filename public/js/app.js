@@ -388,12 +388,16 @@ function renderListAuthState() {
 function renderMyListings() {
   const el = document.getElementById('my-listings');
   el.innerHTML = myCompanies.map(c => {
-    const totalFinished = (c.stats_completed || 0) + (c.stats_cancelled || 0) + (c.stats_noshow || 0);
-    const noShow = totalFinished > 0 ? Math.round((c.stats_noshow / totalFinished) * 100) : 0;
-    const cancel = totalFinished > 0 ? Math.round((c.stats_cancelled / totalFinished) * 100) : 0;
-    const stats = totalFinished > 0
-      ? t('list.statsLine', { trips: `<span class="num">${c.stats_completed}</span>`, noShow: `<span class="num">${noShow}</span>`, cancel: `<span class="num">${cancel}</span>` })
-      : t('card.noRidesYet');
+    const completed = c.stats_completed || 0;
+    const cancelled = c.stats_cancelled || 0;
+    const noshow = c.stats_noshow || 0;
+    const totalFinished = completed + cancelled + noshow;
+    const received = c.total_received || 0;
+    const declined = c.total_declined || 0;
+    const noShowPct = totalFinished > 0 ? Math.round((noshow / totalFinished) * 100) : null;
+    const cancelPct = totalFinished > 0 ? Math.round((cancelled / totalFinished) * 100) : null;
+    const acceptPct = received > 0 ? Math.round(((received - declined) / received) * 100) : null;
+    const fmt = (v) => v === null ? '—' : `${v}%`;
     return `
       <article class="listing-card" data-id="${c.id}">
         <div class="listing-head">
@@ -408,7 +412,24 @@ function renderMyListings() {
         <div class="listing-meta">
           <span><span class="num">${fmtPricePerKm(c.price_per_km)}</span></span>
           <span>${t('card.min')} <span class="num">${fmtKm(c.min_km)}</span></span>
-          <span>${stats}</span>
+        </div>
+        <div class="listing-stats">
+          <div class="listing-stat">
+            <span class="listing-stat-label">${t('listing.trips')}</span>
+            <span class="listing-stat-value num">${completed}</span>
+          </div>
+          <div class="listing-stat">
+            <span class="listing-stat-label">${t('listing.acceptance')}</span>
+            <span class="listing-stat-value num">${fmt(acceptPct)}</span>
+          </div>
+          <div class="listing-stat ${noShowPct > 0 ? 'is-warn' : ''}">
+            <span class="listing-stat-label">${t('listing.noShow')}</span>
+            <span class="listing-stat-value num">${fmt(noShowPct)}</span>
+          </div>
+          <div class="listing-stat ${cancelPct > 0 ? 'is-warn' : ''}">
+            <span class="listing-stat-label">${t('listing.cancel')}</span>
+            <span class="listing-stat-value num">${fmt(cancelPct)}</span>
+          </div>
         </div>
         <div class="listing-contact">
           <span><a href="tel:${escapeHtml(c.phone)}">${escapeHtml(c.phone)}</a></span>

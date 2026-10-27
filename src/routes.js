@@ -124,7 +124,12 @@ export async function listMyCompanies(request, env) {
   if (!user) return error(401, 'Login required');
 
   const { results } = await env.DB.prepare(
-    'SELECT * FROM companies WHERE owner_id = ? ORDER BY created_at DESC'
+    `SELECT c.*,
+       (SELECT COUNT(*) FROM bookings b WHERE b.company_id = c.id) AS total_received,
+       (SELECT COUNT(*) FROM bookings b WHERE b.company_id = c.id AND b.status = 'declined') AS total_declined
+     FROM companies c
+     WHERE c.owner_id = ?
+     ORDER BY c.created_at DESC`
   ).bind(user.id).all();
 
   return json({ companies: results });
