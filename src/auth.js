@@ -69,13 +69,13 @@ export async function getSessionUser(env, request) {
   const token = readSessionCookie(request);
   if (!token) return null;
   const row = await env.DB.prepare(
-    `SELECT u.id, u.email, u.name, s.expires_at
+    `SELECT u.id, u.email, u.name, u.role, s.expires_at
        FROM sessions s JOIN users u ON u.id = s.user_id
       WHERE s.token = ?`
   ).bind(token).first();
   if (!row) return null;
   if (row.expires_at < Date.now()) return null;
-  return { id: row.id, email: row.email, name: row.name };
+  return { id: row.id, email: row.email, name: row.name, role: row.role };
 }
 
 export { SESSION_TTL_MS };

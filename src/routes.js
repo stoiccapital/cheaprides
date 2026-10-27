@@ -15,6 +15,7 @@ export async function signup(request, env) {
   const email = String(body.email || '').trim().toLowerCase();
   const password = String(body.password || '');
   const name = body.name ? String(body.name).trim() : null;
+  const role = body.role === 'company' ? 'company' : 'passenger';
 
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return error(400, 'Invalid email');
   if (password.length < 8) return error(400, 'Password must be at least 8 characters');
@@ -27,9 +28,9 @@ export async function signup(request, env) {
   const now = Date.now();
 
   await env.DB.prepare(
-    `INSERT INTO users (id, email, password_hash, password_salt, name, created_at)
-     VALUES (?, ?, ?, ?, ?, ?)`
-  ).bind(id, email, hash, salt, name, now).run();
+    `INSERT INTO users (id, email, password_hash, password_salt, name, role, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).bind(id, email, hash, salt, name, role, now).run();
 
   const token = newSessionToken();
   const expires = now + SESSION_TTL_MS;
@@ -37,7 +38,7 @@ export async function signup(request, env) {
     'INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)'
   ).bind(token, id, expires).run();
 
-  return withCookie(json({ user: { id, email, name } }), sessionCookie(token));
+  return withCookie(json({ user: { id, email, name, role } }), sessionCookie(token));
 }
 
 export async function login(request, env) {
@@ -47,7 +48,7 @@ export async function login(request, env) {
   const password = String(body.password || '');
 
   const user = await env.DB.prepare(
-    'SELECT id, email, password_hash, password_salt, name FROM users WHERE email = ?'
+    'SELECT id, email, password_hash, password_salt, name, role FROM users WHERE email = ?'
   ).bind(email).first();
   if (!user) return error(401, 'Invalid email or password');
 
@@ -61,7 +62,7 @@ export async function login(request, env) {
   ).bind(token, user.id, expires).run();
 
   return withCookie(
-    json({ user: { id: user.id, email: user.email, name: user.name } }),
+    json({ user: { id: user.id, email: user.email, name: user.name, role: user.role } }),
     sessionCookie(token)
   );
 }
@@ -109,14 +110,19 @@ export async function listCompanies(request, env) {
     }
   }
 
+  // Phone/email are private — only revealed to a passenger after they book.
   return json({
-    companies: companies.map(c => ({ ...c, reviews: reviewsByCompany[c.id] || [] })),
+    companies: companies.map(c => {
+      const { phone, email, ...pub } = c;
+      return { ...pub, reviews: reviewsByCompany[c.id] || [] };
+    }),
   });
 }
 
 export async function createCompany(request, env) {
   const user = await getSessionUser(env, request);
   if (!user) return error(401, 'Login required');
+  if (user.role !== 'company') return error(403, 'Only company accounts can list a company');
 
   const body = await readJson(request);
   if (!body) return error(400, 'Invalid JSON');
@@ -126,13 +132,16 @@ export async function createCompany(request, env) {
   const city = String(body.city || '').trim();
   const vat_number = String(body.vat_number || '').trim();
   const managing_director = String(body.managing_director || '').trim();
+  const phone = String(body.phone || '').trim();
+  const email = String(body.email || '').trim().toLowerCase();
   const description = body.description ? String(body.description).trim() : null;
   const price_per_km = parseFloat(body.price_per_km);
   const min_km = parseFloat(body.min_km);
 
-  if (!name || !billing_address || !city || !vat_number || !managing_director) {
+  if (!name || !billing_address || !city || !vat_number || !managing_director || !phone || !email) {
     return error(400, 'Missing required fields');
   }
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return error(400, 'Invalid contact email');
   if (isNaN(price_per_km) || price_per_km <= 0) return error(400, 'Invalid price per km');
   if (isNaN(min_km) || min_km <= 0) return error(400, 'Invalid minimum km');
 
@@ -140,10 +149,10 @@ export async function createCompany(request, env) {
   const now = Date.now();
   await env.DB.prepare(
     `INSERT INTO companies (id, owner_id, name, billing_address, city, vat_number, managing_director,
-                            description, price_per_km, min_km, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                            phone, email, description, price_per_km, min_km, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(id, user.id, name, billing_address, city, vat_number, managing_director,
-         description, price_per_km, min_km, now).run();
+         phone, email, description, price_per_km, min_km, now).run();
 
   const row = await env.DB.prepare('SELECT * FROM companies WHERE id = ?').bind(id).first();
   return json({ company: { ...row, reviews: [] } }, { status: 201 });
@@ -157,24 +166,31 @@ export async function listBookings(request, env) {
 
   // Return bookings where user is the rider OR the owner of the company
   const { results } = await env.DB.prepare(
-    `SELECT b.*, c.name AS company_name, c.city AS company_city, c.owner_id
+    `SELECT b.*, c.name AS company_name, c.city AS company_city, c.owner_id,
+            c.phone AS company_phone, c.email AS company_email
        FROM bookings b
        JOIN companies c ON c.id = b.company_id
       WHERE b.rider_id = ? OR c.owner_id = ?
       ORDER BY b.created_at DESC`
   ).bind(user.id, user.id).all();
 
-  const bookings = results.map(r => ({
-    ...r,
-    is_rider: r.rider_id === user.id,
-    is_owner: r.owner_id === user.id,
-  }));
+  const bookings = results.map(r => {
+    const isRider = r.rider_id === user.id;
+    const isOwner = r.owner_id === user.id;
+    // Only the rider on this booking sees the company's contact info.
+    if (!isRider) {
+      r.company_phone = null;
+      r.company_email = null;
+    }
+    return { ...r, is_rider: isRider, is_owner: isOwner };
+  });
   return json({ bookings });
 }
 
 export async function createBooking(request, env) {
   const user = await getSessionUser(env, request);
   if (!user) return error(401, 'Login required');
+  if (user.role !== 'passenger') return error(403, 'Only passengers can book rides');
 
   const body = await readJson(request);
   if (!body) return error(400, 'Invalid JSON');
@@ -205,7 +221,15 @@ export async function createBooking(request, env) {
   ).bind(id, companyId, user.id, pickup, dropoff, distance, company.price_per_km, total, now).run();
 
   const booking = await env.DB.prepare('SELECT * FROM bookings WHERE id = ?').bind(id).first();
-  return json({ booking: { ...booking, company_name: company.name, is_rider: true, is_owner: false } }, { status: 201 });
+  return json({ booking: {
+    ...booking,
+    company_name: company.name,
+    company_city: company.city,
+    company_phone: company.phone,
+    company_email: company.email,
+    is_rider: true,
+    is_owner: false,
+  } }, { status: 201 });
 }
 
 // Owner actions: accept/decline/complete/cancel/noshow
@@ -263,6 +287,7 @@ export async function bookingAction(request, env, id) {
 export async function createReview(request, env) {
   const user = await getSessionUser(env, request);
   if (!user) return error(401, 'Login required');
+  if (user.role !== 'passenger') return error(403, 'Only passengers can leave reviews');
 
   const body = await readJson(request);
   const bookingId = String(body?.booking_id || '');

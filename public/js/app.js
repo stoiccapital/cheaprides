@@ -170,6 +170,7 @@ btnLogout.addEventListener('click', async () => {
   renderAuthState();
   renderBookings();
   renderListAuthState();
+  renderCompanies();
 });
 
 function openAuth(mode) {
@@ -180,14 +181,16 @@ function openAuth(mode) {
   const switchText = document.getElementById('auth-switch-text');
   const switchBtn = document.getElementById('auth-switch');
   const nameField = document.getElementById('auth-name-field');
+  const roleField = document.getElementById('auth-role-field');
 
   if (mode === 'signup') {
     title.textContent = 'Create your account';
-    sub.textContent = 'Book rides with just an email.';
+    sub.textContent = 'Pick an account type to get started.';
     submit.textContent = 'Sign up';
     switchText.textContent = 'Already have an account?';
     switchBtn.textContent = 'Log in instead';
     nameField.hidden = false;
+    roleField.hidden = false;
   } else {
     title.textContent = 'Log in';
     sub.textContent = 'Welcome back.';
@@ -195,9 +198,12 @@ function openAuth(mode) {
     switchText.textContent = 'New here?';
     switchBtn.textContent = 'Create an account';
     nameField.hidden = true;
+    roleField.hidden = true;
   }
   authError.hidden = true;
   authForm.reset();
+  const defaultRole = document.querySelector('input[name="a-role"][value="passenger"]');
+  if (defaultRole) defaultRole.checked = true;
   openModalEl(authModal);
 }
 
@@ -211,15 +217,18 @@ authForm.addEventListener('submit', async (e) => {
   const email = document.getElementById('a-email').value.trim();
   const password = document.getElementById('a-password').value;
   const name = document.getElementById('a-name').value.trim();
+  const roleInput = document.querySelector('input[name="a-role"]:checked');
+  const role = roleInput ? roleInput.value : 'passenger';
 
   try {
     const path = authMode === 'signup' ? '/auth/signup' : '/auth/login';
-    const body = authMode === 'signup' ? { email, password, name } : { email, password };
+    const body = authMode === 'signup' ? { email, password, name, role } : { email, password };
     const data = await api(path, { method: 'POST', body });
     currentUser = data.user;
     closeAllModals();
     renderAuthState();
     renderListAuthState();
+    renderCompanies();
     await refreshBookings();
   } catch (err) {
     authError.textContent = err.message;
@@ -228,28 +237,40 @@ authForm.addEventListener('submit', async (e) => {
 });
 
 function renderAuthState() {
+  const listTab = document.querySelector('[data-tab="list"]');
   if (currentUser) {
     authUserEl.hidden = false;
-    authUserEl.textContent = currentUser.name || currentUser.email;
+    const roleLabel = currentUser.role === 'company' ? ' · company' : '';
+    authUserEl.textContent = (currentUser.name || currentUser.email) + roleLabel;
     btnLogout.hidden = false;
     btnLogin.hidden = true;
     btnSignup.hidden = true;
+    // Hide "List your company" tab for passengers.
+    if (listTab) listTab.hidden = currentUser.role === 'passenger';
   } else {
     authUserEl.hidden = true;
     btnLogout.hidden = true;
     btnLogin.hidden = false;
     btnSignup.hidden = false;
+    if (listTab) listTab.hidden = false;
   }
 }
 
 function renderListAuthState() {
-  if (currentUser) {
-    listAuthWarn.hidden = true;
-    companyForm.hidden = false;
-  } else {
+  if (!currentUser) {
     listAuthWarn.hidden = false;
+    listAuthWarn.innerHTML = '<p>You need to <button class="link-btn" data-auth="login">log in</button> or <button class="link-btn" data-auth="signup">sign up as a company</button> to list a company.</p>';
     companyForm.hidden = true;
+    return;
   }
+  if (currentUser.role !== 'company') {
+    listAuthWarn.hidden = false;
+    listAuthWarn.innerHTML = '<p>Your account is a <strong>passenger</strong> account. Only company accounts can list a company. Log out and sign up again as a company to continue.</p>';
+    companyForm.hidden = true;
+    return;
+  }
+  listAuthWarn.hidden = true;
+  companyForm.hidden = false;
 }
 
 // ---------- Companies ----------
@@ -323,10 +344,16 @@ function cardHtml(company) {
       ${s.noShow > 0 ? `<span class="stat stat-warn"><span class="num">${s.noShow}</span> no-show</span>` : ''}
     </div>` : '';
 
-  const canBook = currentDistance && currentDistance >= company.min_km;
-  const bookBtn = canBook
-    ? `<button class="btn btn-primary btn-sm" data-action="book" data-id="${company.id}">Book now</button>`
-    : `<button class="btn btn-primary btn-sm" disabled title="Enter a route first">Book now</button>`;
+  const isCompanyAccount = currentUser && currentUser.role === 'company';
+  const canBook = currentDistance && currentDistance >= company.min_km && !isCompanyAccount;
+  let bookBtn;
+  if (isCompanyAccount) {
+    bookBtn = `<button class="btn btn-primary btn-sm" disabled title="Company accounts can't book rides">Book now</button>`;
+  } else if (canBook) {
+    bookBtn = `<button class="btn btn-primary btn-sm" data-action="book" data-id="${company.id}">Book now</button>`;
+  } else {
+    bookBtn = `<button class="btn btn-primary btn-sm" disabled title="Enter a route first">Book now</button>`;
+  }
 
   return `
     <article class="company-card" data-id="${company.id}">
@@ -514,6 +541,8 @@ companyForm.addEventListener('submit', async (e) => {
     billing_address: document.getElementById('c-address').value.trim(),
     city: document.getElementById('c-city').value.trim(),
     vat_number: document.getElementById('c-vat').value.trim(),
+    phone: document.getElementById('c-phone').value.trim(),
+    email: document.getElementById('c-email').value.trim(),
     description: document.getElementById('c-desc').value.trim(),
     price_per_km: parseFloat(document.getElementById('c-price').value),
     min_km: parseFloat(document.getElementById('c-min').value),
@@ -531,6 +560,7 @@ companyForm.addEventListener('submit', async (e) => {
 // ---------- Booking ----------
 function onBookClick(companyId) {
   if (!currentUser) { openAuth('login'); return; }
+  if (currentUser.role !== 'passenger') { alert('Only passenger accounts can book rides.'); return; }
   const company = companies.find(c => c.id === companyId);
   if (!company) return;
   if (!currentDistance) { alert('Enter pickup, dropoff, and distance first.'); return; }
@@ -651,6 +681,13 @@ function bookingCardHtml(b) {
     ? `<span class="muted">as company</span>`
     : `<span class="muted">as rider</span>`;
 
+  // Rider sees company contact details as soon as the booking exists.
+  const contactBlock = (b.is_rider && (b.company_phone || b.company_email)) ? `
+    <div class="booking-contact">
+      ${b.company_phone ? `<span><span class="contact-label">Phone</span><a href="tel:${escapeHtml(b.company_phone)}" class="mono">${escapeHtml(b.company_phone)}</a></span>` : ''}
+      ${b.company_email ? `<span><span class="contact-label">Email</span><a href="mailto:${escapeHtml(b.company_email)}">${escapeHtml(b.company_email)}</a></span>` : ''}
+    </div>` : '';
+
   return `
     <article class="booking-card">
       <div class="booking-head">
@@ -668,6 +705,7 @@ function bookingCardHtml(b) {
         <span class="dot">·</span>
         <span class="booking-total">${fmtEuro(b.total)}</span>
       </div>
+      ${contactBlock}
       ${actions ? `<div class="booking-actions">${actions}</div>` : ''}
     </article>
   `;

@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash   TEXT NOT NULL,
   password_salt   TEXT NOT NULL,
   name            TEXT,
+  role            TEXT NOT NULL DEFAULT 'passenger',  -- 'passenger' | 'company'
   created_at      INTEGER NOT NULL
 );
 
@@ -25,6 +26,8 @@ CREATE TABLE IF NOT EXISTS companies (
   city                TEXT NOT NULL,
   vat_number          TEXT NOT NULL,
   managing_director   TEXT NOT NULL,
+  phone               TEXT NOT NULL,
+  email               TEXT NOT NULL,
   description         TEXT,
   price_per_km        REAL NOT NULL,
   min_km              REAL NOT NULL,

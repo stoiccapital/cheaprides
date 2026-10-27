@@ -20,7 +20,7 @@
       <nav class="tabs" role="tablist">
         <button class="tab is-active" data-view="browse" role="tab">Browse rides</button>
         <button class="tab" data-view="bookings" role="tab">Bookings <span id="bookings-count" class="tab-count" hidden>0</span></button>
-        <button class="tab" data-view="list" role="tab">List your company</button>
+        <button class="tab" data-view="list" role="tab" data-tab="list">List your company</button>
       </nav>
       <div class="auth-area">
         <span id="auth-user" class="auth-user" hidden></span>
@@ -149,6 +149,16 @@
               <input type="text" id="c-vat" required maxlength="40" placeholder="DE123456789" />
             </div>
           </div>
+          <div class="row">
+            <div class="field">
+              <label for="c-phone">Contact phone</label>
+              <input type="tel" id="c-phone" required maxlength="40" placeholder="+49 30 1234567" />
+            </div>
+            <div class="field">
+              <label for="c-email">Contact email</label>
+              <input type="email" id="c-email" required maxlength="80" placeholder="dispatch@yourcompany.de" />
+            </div>
+          </div>
           <div class="field">
             <label for="c-desc">Short description</label>
             <textarea id="c-desc" rows="2" maxlength="140" placeholder="One line about your fleet or service."></textarea>
@@ -251,6 +261,25 @@
       </header>
       <div class="modal-body">
         <form id="auth-form" class="review-form">
+          <div class="field" id="auth-role-field" hidden>
+            <label>Account type</label>
+            <div class="role-picker" role="radiogroup" aria-label="Account type">
+              <label class="role-opt">
+                <input type="radio" name="a-role" value="passenger" checked />
+                <span class="role-opt-body">
+                  <strong>Passenger</strong>
+                  <span class="muted">Book rides and leave reviews.</span>
+                </span>
+              </label>
+              <label class="role-opt">
+                <input type="radio" name="a-role" value="company" />
+                <span class="role-opt-body">
+                  <strong>Company</strong>
+                  <span class="muted">List your fleet and accept bookings.</span>
+                </span>
+              </label>
+            </div>
+          </div>
           <div class="field" id="auth-name-field" hidden>
             <label for="a-name">Your name</label>
             <input type="text" id="a-name" maxlength="40" placeholder="Alex" />

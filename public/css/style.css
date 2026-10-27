@@ -419,6 +419,37 @@ body {
 .summary-value { color: var(--text); }
 .summary-row.total .summary-value { color: var(--accent); font-size: 18px; font-weight: 600; }
 
+/* ---------- Role picker (signup) ---------- */
+.role-picker {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+}
+.role-opt {
+  display: block; cursor: pointer;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 12px; background: var(--bg-elev);
+  transition: border-color 0.12s, background 0.12s;
+}
+.role-opt:hover { border-color: var(--border-strong); }
+.role-opt input { position: absolute; opacity: 0; pointer-events: none; }
+.role-opt-body { display: flex; flex-direction: column; gap: 2px; }
+.role-opt-body strong { font-size: 14px; }
+.role-opt-body .muted { font-size: 12px; }
+.role-opt:has(input:checked) {
+  border-color: var(--accent);
+  background: color-mix(in oklab, var(--accent) 8%, var(--bg-elev));
+}
+
+/* ---------- Booking contact (visible to rider) ---------- */
+.booking-contact {
+  margin-top: 10px; padding-top: 10px;
+  border-top: 1px dashed var(--border);
+  display: flex; flex-wrap: wrap; gap: 14px;
+  font-size: 13px;
+}
+.booking-contact .contact-label { color: var(--text-mute); margin-right: 6px; }
+.booking-contact a { color: var(--text); text-decoration: none; border-bottom: 1px dotted var(--border-strong); }
+.booking-contact a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+
 /* ---------- Footer ---------- */
 .site-footer {
   padding: 32px 0; border-top: 1px solid var(--border);
