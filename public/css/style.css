@@ -177,11 +177,21 @@ body {
 }
 
 .trip-form {
-  display: grid; grid-template-columns: 1fr 1fr 140px 160px auto; gap: 12px;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr auto;
+  grid-template-areas:
+    "pickup   pickup   dropoff dropoff"
+    "distance sort     sort    calc";
+  gap: 12px;
   background: var(--bg-elev); border: 1px solid var(--border);
   border-radius: var(--radius-lg); padding: 16px; align-items: end;
   margin-bottom: 24px;
 }
+.trip-form > :nth-child(1) { grid-area: pickup; }
+.trip-form > :nth-child(2) { grid-area: dropoff; }
+.trip-form > :nth-child(3) { grid-area: distance; }
+.trip-form > :nth-child(4) { grid-area: sort; }
+.trip-form > :nth-child(5) { grid-area: calc; }
 
 .company-form {
   background: var(--bg-elev); border: 1px solid var(--border);
@@ -541,8 +551,13 @@ body {
 
 /* ---------- Responsive ---------- */
 @media (max-width: 820px) {
-  .trip-form { grid-template-columns: 1fr 1fr; }
-  .trip-form .btn { grid-column: 1 / -1; }
+  .trip-form {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "pickup   dropoff"
+      "distance sort"
+      "calc     calc";
+  }
   .hero h1 { font-size: 32px; }
   .company-form .row { grid-template-columns: 1fr; }
 }
@@ -558,7 +573,16 @@ body {
   .hero .lede { display: none; }
 
   /* Trip form stacks fully; keep CTA full-width */
-  .trip-form { grid-template-columns: 1fr; padding: 12px; gap: 10px; }
+  .trip-form {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "pickup"
+      "dropoff"
+      "distance"
+      "sort"
+      "calc";
+    padding: 12px; gap: 10px;
+  }
 
   /* Collapse trip form to a sticky compact summary once a route is set */
   body.has-trip:not(.editing-trip) #trip-form { display: none; }
