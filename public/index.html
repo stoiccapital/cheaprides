@@ -121,11 +121,17 @@
     <section id="view-list" class="view">
       <div class="container container-sm">
         <div class="hero">
-          <h1 data-i18n="list.heroTitle">Register your ride company.</h1>
-          <p class="lede" data-i18n="list.heroLede">We need your business details for billing and compliance. Drivers see your listing as soon as you publish.</p>
+          <h1 id="list-hero-title" data-i18n="list.heroTitle">Register your ride company.</h1>
+          <p class="lede" id="list-hero-lede" data-i18n="list.heroLede">We need your business details for billing and compliance. Drivers see your listing as soon as you publish.</p>
         </div>
 
         <div id="list-auth-warn" class="empty-state" hidden></div>
+
+        <div id="my-listings" class="my-listings" hidden></div>
+
+        <div id="list-form-actions" class="list-form-actions" hidden>
+          <button type="button" id="btn-new-listing" class="btn btn-ghost" data-i18n="list.listAnother">List another company</button>
+        </div>
 
         <form id="company-form" class="company-form" autocomplete="off" hidden>
           <div class="field">
@@ -180,7 +186,10 @@
               </div>
             </div>
           </div>
-          <button type="submit" class="btn btn-primary" data-i18n="list.publish">Publish listing</button>
+          <div class="form-actions">
+            <button type="button" id="btn-cancel-edit" class="btn btn-ghost" hidden data-i18n="list.cancelEdit">Cancel</button>
+            <button type="submit" id="btn-publish" class="btn btn-primary" data-i18n="list.publish">Publish listing</button>
+          </div>
         </form>
       </div>
     </section>

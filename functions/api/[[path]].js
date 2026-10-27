@@ -3,7 +3,7 @@
 
 import {
   signup, login, logout, me,
-  listCompanies, createCompany,
+  listCompanies, createCompany, listMyCompanies, updateCompany,
   listBookings, createBooking, bookingAction,
   createReview,
 } from '../../src/routes.js';
@@ -23,6 +23,10 @@ export async function onRequest(context) {
 
     if (pathname === '/api/companies' && method === 'GET')  return listCompanies(request, env);
     if (pathname === '/api/companies' && method === 'POST') return createCompany(request, env);
+    if (pathname === '/api/companies/mine' && method === 'GET') return listMyCompanies(request, env);
+
+    const companyUpdate = pathname.match(/^\/api\/companies\/([^/]+)$/);
+    if (companyUpdate && method === 'PUT') return updateCompany(request, env, companyUpdate[1]);
 
     if (pathname === '/api/bookings' && method === 'GET')  return listBookings(request, env);
     if (pathname === '/api/bookings' && method === 'POST') return createBooking(request, env);

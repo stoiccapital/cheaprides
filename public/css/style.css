@@ -529,6 +529,42 @@ body {
   .role-opt.is-selected { background: rgba(124,242,156,0.1); }
 }
 
+/* ---------- My listings (company self-service) ---------- */
+.my-listings {
+  display: flex; flex-direction: column; gap: 12px;
+  margin-bottom: 20px;
+}
+.listing-card {
+  background: var(--bg-elev); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 20px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.listing-head {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
+}
+.listing-name { font-size: 17px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+.listing-city { color: var(--text-dim); font-size: 13px; }
+.listing-meta {
+  display: flex; flex-wrap: wrap; gap: 14px;
+  font-size: 13px; color: var(--text-dim);
+}
+.listing-meta .num { color: var(--text); font-family: var(--mono); }
+.listing-contact {
+  display: flex; flex-wrap: wrap; gap: 14px;
+  font-size: 12px; color: var(--text-mute);
+  padding-top: 10px; border-top: 1px dashed var(--border);
+}
+.listing-contact a { color: var(--text); text-decoration: none; }
+.listing-contact a:hover { color: var(--accent); }
+.listing-actions { display: flex; gap: 8px; }
+
+.list-form-actions { margin-bottom: 20px; }
+
+.form-actions {
+  display: flex; gap: 10px; justify-content: flex-end;
+  padding-top: 8px;
+}
+
 /* ---------- Compact trip summary (mobile only) ---------- */
 .trip-compact {
   display: none;

@@ -48,7 +48,9 @@ function setLang(lang) {
 // ---------- State ----------
 let currentUser = null;      // { id, email, name } when logged in
 let companies = [];          // from /api/companies
+let myCompanies = [];        // from /api/companies/mine (company accounts only)
 let bookings = [];           // from /api/bookings (only when logged in)
+let editingCompanyId = null; // null = create mode; id = edit mode
 const DEFAULT_DISTANCE_KM = 25;
 let currentDistance = DEFAULT_DISTANCE_KM;
 let isDefaultDistance = true;  // true until user commits a route/distance
@@ -214,6 +216,8 @@ btnLogout.addEventListener('click', async () => {
   await api('/auth/logout', { method: 'POST' });
   currentUser = null;
   bookings = [];
+  myCompanies = [];
+  editingCompanyId = null;
   renderAuthState();
   renderBookings();
   renderListAuthState();
@@ -285,9 +289,9 @@ authForm.addEventListener('submit', async (e) => {
     currentUser = data.user;
     closeAllModals();
     renderAuthState();
-    renderListAuthState();
     renderCompanies();
-    await refreshBookings();
+    await Promise.all([refreshBookings(), refreshMyCompanies()]);
+    renderListAuthState();
   } catch (err) {
     authError.textContent = err.message;
     authError.hidden = false;
@@ -304,35 +308,179 @@ function renderAuthState() {
     btnLogout.hidden = false;
     btnLogin.hidden = true;
     btnSignup.hidden = true;
-    // Hide "List your company" tab for passengers.
-    if (listTab) listTab.hidden = currentUser.role === 'passenger';
+    // Hide "List your company" tab for passengers; relabel to "My listings" for companies.
+    if (listTab) {
+      listTab.hidden = currentUser.role === 'passenger';
+      if (currentUser.role === 'company') listTab.textContent = t('nav.myListings');
+      else listTab.textContent = t('nav.list');
+    }
   } else {
     authUserEl.hidden = true;
     btnLogout.hidden = true;
     btnLogin.hidden = false;
     btnSignup.hidden = false;
-    if (listTab) listTab.hidden = false;
+    if (listTab) {
+      listTab.hidden = false;
+      listTab.textContent = t('nav.list');
+    }
   }
 }
 
 function renderListAuthState() {
+  const myListingsEl = document.getElementById('my-listings');
+  const listFormActions = document.getElementById('list-form-actions');
+  const listHeroTitle = document.getElementById('list-hero-title');
+  const listHeroLede = document.getElementById('list-hero-lede');
+
   if (!currentUser) {
     listAuthWarn.hidden = false;
     const loginLink = `<button class="link-btn" data-auth="login">${t('list.loginLink')}</button>`;
     const signupLink = `<button class="link-btn" data-auth="signup">${t('list.signupLink')}</button>`;
     listAuthWarn.innerHTML = `<p>${t('list.authWarnLoggedOut', { loginLink, signupLink })}</p>`;
     companyForm.hidden = true;
+    myListingsEl.hidden = true;
+    listFormActions.hidden = true;
     return;
   }
   if (currentUser.role !== 'company') {
     listAuthWarn.hidden = false;
     listAuthWarn.innerHTML = `<p>${t('list.authWarnWrongRole')}</p>`;
     companyForm.hidden = true;
+    myListingsEl.hidden = true;
+    listFormActions.hidden = true;
     return;
   }
   listAuthWarn.hidden = true;
-  companyForm.hidden = false;
+
+  // Company account: show listings if they exist, show form by default when none.
+  const hasListings = myCompanies.length > 0;
+  const inEditMode = editingCompanyId !== null;
+
+  if (inEditMode) {
+    // Editing: hide list, show form with "edit" labels
+    myListingsEl.hidden = true;
+    listFormActions.hidden = true;
+    companyForm.hidden = false;
+    listHeroTitle.textContent = t('list.editTitle');
+    listHeroLede.textContent = t('list.editLede');
+    document.getElementById('btn-publish').textContent = t('list.saveChanges');
+    document.getElementById('btn-cancel-edit').hidden = false;
+  } else if (hasListings) {
+    // Has listings, not editing: show listing cards + "List another" button, hide form
+    renderMyListings();
+    myListingsEl.hidden = false;
+    listFormActions.hidden = false;
+    companyForm.hidden = true;
+    listHeroTitle.textContent = t('list.myListingsTitle');
+    listHeroLede.textContent = t('list.myListingsLede');
+  } else {
+    // No listings yet: show the creation form
+    myListingsEl.hidden = true;
+    listFormActions.hidden = true;
+    companyForm.hidden = false;
+    listHeroTitle.textContent = t('list.newListingTitle');
+    listHeroLede.textContent = t('list.newListingLede');
+    document.getElementById('btn-publish').textContent = t('list.publish');
+    document.getElementById('btn-cancel-edit').hidden = true;
+  }
 }
+
+function renderMyListings() {
+  const el = document.getElementById('my-listings');
+  el.innerHTML = myCompanies.map(c => {
+    const totalFinished = (c.stats_completed || 0) + (c.stats_cancelled || 0) + (c.stats_noshow || 0);
+    const noShow = totalFinished > 0 ? Math.round((c.stats_noshow / totalFinished) * 100) : 0;
+    const cancel = totalFinished > 0 ? Math.round((c.stats_cancelled / totalFinished) * 100) : 0;
+    const stats = totalFinished > 0
+      ? t('list.statsLine', { trips: `<span class="num">${c.stats_completed}</span>`, noShow: `<span class="num">${noShow}</span>`, cancel: `<span class="num">${cancel}</span>` })
+      : t('card.noRidesYet');
+    return `
+      <article class="listing-card" data-id="${c.id}">
+        <div class="listing-head">
+          <div>
+            <h3 class="listing-name">${escapeHtml(c.name)}</h3>
+            <span class="listing-city">${escapeHtml(c.city)}</span>
+          </div>
+          <div class="listing-actions">
+            <button class="btn btn-ghost btn-sm" data-edit="${c.id}">${t('list.edit')}</button>
+          </div>
+        </div>
+        <div class="listing-meta">
+          <span><span class="num">${fmtPricePerKm(c.price_per_km)}</span></span>
+          <span>${t('card.min')} <span class="num">${fmtKm(c.min_km)}</span></span>
+          <span>${stats}</span>
+        </div>
+        <div class="listing-contact">
+          <span><a href="tel:${escapeHtml(c.phone)}">${escapeHtml(c.phone)}</a></span>
+          <span><a href="mailto:${escapeHtml(c.email)}">${escapeHtml(c.email)}</a></span>
+        </div>
+      </article>
+    `;
+  }).join('');
+}
+
+async function refreshMyCompanies() {
+  if (!currentUser || currentUser.role !== 'company') {
+    myCompanies = [];
+    return;
+  }
+  try {
+    const data = await api('/companies/mine');
+    myCompanies = data.companies;
+  } catch (err) {
+    console.error('Load my companies failed', err);
+    myCompanies = [];
+  }
+}
+
+function startEditListing(id) {
+  const c = myCompanies.find(x => x.id === id);
+  if (!c) return;
+  editingCompanyId = id;
+  // Pre-fill the form fields
+  document.getElementById('c-name').value = c.name;
+  document.getElementById('c-director').value = c.managing_director;
+  document.getElementById('c-address').value = c.billing_address;
+  document.getElementById('c-city').value = c.city;
+  document.getElementById('c-vat').value = c.vat_number;
+  document.getElementById('c-phone').value = c.phone;
+  document.getElementById('c-email').value = c.email;
+  document.getElementById('c-desc').value = c.description || '';
+  document.getElementById('c-price').value = c.price_per_km;
+  document.getElementById('c-min').value = c.min_km;
+  renderListAuthState();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function cancelEditListing() {
+  editingCompanyId = null;
+  companyForm.reset();
+  renderListAuthState();
+}
+
+function startNewListing() {
+  editingCompanyId = null;
+  companyForm.reset();
+  // Force the form to show even if listings exist
+  document.getElementById('my-listings').hidden = true;
+  document.getElementById('list-form-actions').hidden = true;
+  companyForm.hidden = false;
+  document.getElementById('list-hero-title').textContent = t('list.newListingTitle');
+  document.getElementById('list-hero-lede').textContent = t('list.newListingLede');
+  document.getElementById('btn-publish').textContent = t('list.publish');
+  document.getElementById('btn-cancel-edit').hidden = false;
+  // Repurpose cancel to go back to listings
+  companyForm.dataset.mode = 'new';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Delegated handlers for listing-level buttons
+document.addEventListener('click', (e) => {
+  const editBtn = e.target.closest('[data-edit]');
+  if (editBtn) { startEditListing(editBtn.dataset.edit); return; }
+  if (e.target.id === 'btn-new-listing') startNewListing();
+  if (e.target.id === 'btn-cancel-edit') cancelEditListing();
+});
 
 // ---------- Companies ----------
 async function refreshCompanies() {
@@ -691,13 +839,21 @@ companyForm.addEventListener('submit', async (e) => {
     price_per_km: parseFloat(document.getElementById('c-price').value),
     min_km: parseFloat(document.getElementById('c-min').value),
   };
+  const isEdit = editingCompanyId !== null;
   try {
-    await api('/companies', { method: 'POST', body });
+    if (isEdit) {
+      await api(`/companies/${editingCompanyId}`, { method: 'PUT', body });
+    } else {
+      await api('/companies', { method: 'POST', body });
+    }
     companyForm.reset();
-    await refreshCompanies();
-    switchView('browse');
+    editingCompanyId = null;
+    await Promise.all([refreshCompanies(), refreshMyCompanies()]);
+    renderListAuthState();
+    if (!isEdit) switchView('browse');
   } catch (err) {
-    alert(t('alert.couldNotPublish', { msg: err.message }));
+    const key = isEdit ? 'alert.couldNotSave' : 'alert.couldNotPublish';
+    alert(t(key, { msg: err.message }));
   }
 });
 
@@ -1006,6 +1162,9 @@ async function init() {
     renderListAuthState();
   } catch {}
   await refreshCompanies();
-  if (currentUser) await refreshBookings();
+  if (currentUser) {
+    await Promise.all([refreshBookings(), refreshMyCompanies()]);
+    renderListAuthState();
+  }
 }
 init();

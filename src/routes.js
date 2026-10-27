@@ -119,6 +119,58 @@ export async function listCompanies(request, env) {
   });
 }
 
+export async function listMyCompanies(request, env) {
+  const user = await getSessionUser(env, request);
+  if (!user) return error(401, 'Login required');
+
+  const { results } = await env.DB.prepare(
+    'SELECT * FROM companies WHERE owner_id = ? ORDER BY created_at DESC'
+  ).bind(user.id).all();
+
+  return json({ companies: results });
+}
+
+export async function updateCompany(request, env, id) {
+  const user = await getSessionUser(env, request);
+  if (!user) return error(401, 'Login required');
+
+  const existing = await env.DB.prepare('SELECT * FROM companies WHERE id = ?').bind(id).first();
+  if (!existing) return error(404, 'Company not found');
+  if (existing.owner_id !== user.id) return error(403, 'Only the owner can edit this listing');
+
+  const body = await readJson(request);
+  if (!body) return error(400, 'Invalid JSON');
+
+  const name = String(body.name || '').trim();
+  const billing_address = String(body.billing_address || '').trim();
+  const city = String(body.city || '').trim();
+  const vat_number = String(body.vat_number || '').trim();
+  const managing_director = String(body.managing_director || '').trim();
+  const phone = String(body.phone || '').trim();
+  const email = String(body.email || '').trim().toLowerCase();
+  const description = body.description ? String(body.description).trim() : null;
+  const price_per_km = parseFloat(body.price_per_km);
+  const min_km = parseFloat(body.min_km);
+
+  if (!name || !billing_address || !city || !vat_number || !managing_director || !phone || !email) {
+    return error(400, 'Missing required fields');
+  }
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return error(400, 'Invalid contact email');
+  if (isNaN(price_per_km) || price_per_km <= 0) return error(400, 'Invalid price per km');
+  if (isNaN(min_km) || min_km <= 0) return error(400, 'Invalid minimum km');
+
+  await env.DB.prepare(
+    `UPDATE companies SET
+       name = ?, billing_address = ?, city = ?, vat_number = ?, managing_director = ?,
+       phone = ?, email = ?, description = ?, price_per_km = ?, min_km = ?
+     WHERE id = ?`
+  ).bind(name, billing_address, city, vat_number, managing_director,
+         phone, email, description, price_per_km, min_km, id).run();
+
+  const row = await env.DB.prepare('SELECT * FROM companies WHERE id = ?').bind(id).first();
+  return json({ company: row });
+}
+
 export async function createCompany(request, env) {
   const user = await getSessionUser(env, request);
   if (!user) return error(401, 'Login required');
